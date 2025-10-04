@@ -15,14 +15,19 @@ from random import choice, randint, uniform
 
 from database import SessionLocal, init_db
 from db_models import (
-    Journey,
     JourneyData,
     Report,
     Route,
+    RouteSegment,
     RouteStop,
+    ShapePoint,
     Stop,
+    Ticket,
     User,
+    UserJourney,
+    UserJourneyStop,
     Vehicle,
+    VehicleTrip,
     VehicleType,
 )
 from init_data import VEHICLE_TYPES
@@ -445,14 +450,14 @@ def create_route_stops(db, routes, stops):
     return route_stops
 
 
-def create_journeys(db, routes, users):
-    """Create sample journeys."""
-    print("\n🚀 Creating journeys...")
+def create_vehicle_trips(db, routes, users):
+    """Create sample vehicle trips (previously called journeys)."""
+    print("\n🚀 Creating vehicle trips...")
 
     drivers = [u for u in users if u.role == "DRIVER"]
-    journeys = []
+    vehicle_trips = []
 
-    journey_configs = [
+    trip_configs = [
         {
             "route": routes[0],
             "driver": drivers[0],
@@ -492,8 +497,8 @@ def create_journeys(db, routes, users):
 
     now = datetime.now()
 
-    for config in journey_configs:
-        journey = Journey(
+    for config in trip_configs:
+        vehicle_trip = VehicleTrip(
             route_id=config["route"].id,
             driver_id=config["driver"].id if config["driver"] else None,
             actual_departure=(
@@ -515,33 +520,113 @@ def create_journeys(db, routes, users):
             ),
             current_status=config["status"],
         )
-        db.add(journey)
-        journeys.append(journey)
+        db.add(vehicle_trip)
+        vehicle_trips.append(vehicle_trip)
 
     db.commit()
-    print(f"   ✓ Created {len(journeys)} journeys")
-    return journeys
+    print(f"   ✓ Created {len(vehicle_trips)} vehicle trips")
+    return vehicle_trips
 
 
-def create_journey_data(db, journeys, users):
-    """Create sample sensor data for journeys."""
+def create_route_segments(db, stops):
+    """Create route segments between consecutive stops with unique shape_ids."""
+    print("\n🗺️  Creating route segments...")
+
+    segments = []
+
+    # Create segments between some stops (simulating actual routes)
+    segment_configs = [
+        # Bus route segments
+        (stops[0], stops[2], "SHAPE_BUS_CENTRAL_UNI"),
+        (stops[2], stops[3], "SHAPE_BUS_UNI_AIRPORT"),
+        (stops[3], stops[5], "SHAPE_BUS_AIRPORT_MALL"),
+        # Tram route segments
+        (stops[1], stops[4], "SHAPE_TRAM_OLDTOWN_BUSINESS"),
+        (stops[4], stops[6], "SHAPE_TRAM_BUSINESS_STADIUM"),
+        (stops[6], stops[9], "SHAPE_TRAM_STADIUM_RIVERSIDE"),
+        # Train route segments
+        (stops[0], stops[3], "SHAPE_TRAIN_CENTRAL_AIRPORT"),
+    ]
+
+    for from_stop, to_stop, shape_id in segment_configs:
+        segment = RouteSegment(
+            from_stop_id=from_stop.id,
+            to_stop_id=to_stop.id,
+            shape_id=shape_id,
+        )
+        db.add(segment)
+        segments.append(segment)
+
+    db.commit()
+    print(f"   ✓ Created {len(segments)} route segments")
+    return segments
+
+
+def create_shape_points(db, segments):
+    """Create GPS points for each route segment."""
+    print("\n📍 Creating shape points (GPS coordinates)...")
+
+    all_points = []
+
+    for segment in segments:
+        # Generate 10-15 GPS points per segment
+        num_points = randint(10, 15)
+
+        # Get start and end stop coordinates (we'll simulate this)
+        # In real scenario, these would come from actual stops
+        start_lat = 52.2297 + uniform(-0.05, 0.05)
+        start_lon = 21.0122 + uniform(-0.05, 0.05)
+        end_lat = 52.2297 + uniform(-0.05, 0.05)
+        end_lon = 21.0122 + uniform(-0.05, 0.05)
+
+        # Calculate increments
+        lat_inc = (end_lat - start_lat) / (num_points - 1)
+        lon_inc = (end_lon - start_lon) / (num_points - 1)
+
+        segment_distance = 0.0
+
+        for i in range(num_points):
+            # Add some randomness to make path more realistic
+            random_offset_lat = uniform(-0.0005, 0.0005)
+            random_offset_lon = uniform(-0.0005, 0.0005)
+
+            point = ShapePoint(
+                shape_id=segment.shape_id,
+                shape_pt_lat=start_lat + (lat_inc * i) + random_offset_lat,
+                shape_pt_lon=start_lon + (lon_inc * i) + random_offset_lon,
+                shape_pt_sequence=i + 1,
+                shape_dist_traveled=round(segment_distance, 3),
+            )
+            db.add(point)
+            all_points.append(point)
+
+            # Increment distance (roughly 100-200m between points)
+            segment_distance += uniform(0.1, 0.2)
+
+    db.commit()
+    print(f"   ✓ Created {len(all_points)} shape points")
+    return all_points
+
+
+def create_journey_data(db, vehicle_trips, users):
+    """Create sample sensor data for vehicle trips."""
     print("\n📊 Creating journey data (sensor readings)...")
 
     passengers = [u for u in users if u.role == "PASSENGER"]
     journey_data_list = []
 
-    # Create sensor data for active journeys
-    active_journeys = [
-        j for j in journeys if j.current_status in ["IN_PROGRESS", "DELAYED"]
+    # Create sensor data for active vehicle trips
+    active_trips = [
+        vt for vt in vehicle_trips if vt.current_status in ["IN_PROGRESS", "DELAYED"]
     ]
 
     base_time = datetime.now() - timedelta(minutes=20)
 
-    for journey in active_journeys:
-        # Create 10 sensor readings per journey
+    for vehicle_trip in active_trips:
+        # Create 10 sensor readings per vehicle trip
         for i in range(10):
             data = JourneyData(
-                journey_id=journey.id,
+                vehicle_trip_id=vehicle_trip.id,
                 user_id=choice(passengers).id if randint(0, 1) else None,
                 timestamp=base_time + timedelta(minutes=i * 2),
                 latitude=52.2297 + uniform(-0.05, 0.05),
@@ -577,7 +662,144 @@ def create_journey_data(db, journeys, users):
     return journey_data_list
 
 
-def create_reports(db, journeys, vehicles, users):
+def create_tickets(db, users, vehicle_trips):
+    """Create sample tickets for users."""
+    print("\n🎟️  Creating tickets...")
+
+    tickets = []
+    passengers = [u for u in users if u.role == "PASSENGER"]
+    drivers = [u for u in users if u.role == "DRIVER"]
+
+    # Monthly ticket for passenger 1
+    ticket1 = Ticket(
+        user_id=passengers[0].id,
+        ticket_type="MONTHLY",
+        valid_from=datetime.now() - timedelta(days=10),
+        valid_to=datetime.now() + timedelta(days=20),
+        vehicle_trip_id=None,  # Time-based ticket, no specific trip
+    )
+    db.add(ticket1)
+    tickets.append(ticket1)
+
+    # Two-hour ticket for passenger 2
+    ticket2 = Ticket(
+        user_id=passengers[1].id,
+        ticket_type="TWO_HOUR",
+        valid_from=datetime.now() - timedelta(minutes=30),
+        valid_to=datetime.now() + timedelta(minutes=90),
+        vehicle_trip_id=None,  # Time-based ticket
+    )
+    db.add(ticket2)
+    tickets.append(ticket2)
+
+    # Train route ticket for driver (personal use) - linked to specific vehicle trip
+    if len(vehicle_trips) > 0:
+        ticket3 = Ticket(
+            user_id=drivers[0].id,
+            ticket_type="TRAIN_ROUTE",
+            valid_from=datetime.now(),
+            valid_to=datetime.now() + timedelta(hours=2),
+            vehicle_trip_id=vehicle_trips[0].id,  # Linked to specific trip
+        )
+        db.add(ticket3)
+        tickets.append(ticket3)
+
+    # Daily ticket for passenger 1 (expired)
+    ticket4 = Ticket(
+        user_id=passengers[0].id,
+        ticket_type="DAILY",
+        valid_from=datetime.now() - timedelta(days=5),
+        valid_to=datetime.now() - timedelta(days=4),
+        vehicle_trip_id=None,  # Time-based ticket
+    )
+    db.add(ticket4)
+    tickets.append(ticket4)
+
+    db.commit()
+    print(f"   ✓ Created {len(tickets)} tickets")
+    return tickets
+
+
+def create_user_journeys(db, users, stops):
+    """Create user journeys (planned trips)."""
+    print("\n🗺️  Creating user journeys...")
+
+    user_journeys = []
+    passengers = [u for u in users if u.role == "PASSENGER"]
+
+    # Get some stops for creating journeys
+    all_stops = stops[:8]  # Use first 8 stops
+
+    if len(passengers) >= 2 and len(all_stops) >= 4:
+        # Saved journey 1 for passenger 1: Home to Work (active)
+        journey1 = UserJourney(
+            user_id=passengers[0].id,
+            name="Home → Work",
+            is_saved=True,
+            is_active=True,  # This is their current active journey
+        )
+        db.add(journey1)
+        db.flush()  # Get ID for adding stops
+
+        # Add stops for journey 1
+        for idx, stop in enumerate([all_stops[0], all_stops[2], all_stops[4]]):
+            journey_stop = UserJourneyStop(
+                user_journey_id=journey1.id,
+                stop_id=stop.id,
+                stop_order=idx + 1,
+            )
+            db.add(journey_stop)
+
+        user_journeys.append(journey1)
+
+        # Saved journey 2 for passenger 1: Work to Home
+        journey2 = UserJourney(
+            user_id=passengers[0].id,
+            name="Work → Home",
+            is_saved=True,
+            is_active=False,
+        )
+        db.add(journey2)
+        db.flush()
+
+        # Add stops for journey 2 (reverse)
+        for idx, stop in enumerate([all_stops[4], all_stops[2], all_stops[0]]):
+            journey_stop = UserJourneyStop(
+                user_journey_id=journey2.id,
+                stop_id=stop.id,
+                stop_order=idx + 1,
+            )
+            db.add(journey_stop)
+
+        user_journeys.append(journey2)
+
+        # Saved journey 3 for passenger 2: Shopping trip
+        journey3 = UserJourney(
+            user_id=passengers[1].id,
+            name="Home → Mall → Park",
+            is_saved=True,
+            is_active=False,
+        )
+        db.add(journey3)
+        db.flush()
+
+        # Add stops for journey 3
+        for idx, stop in enumerate([all_stops[1], all_stops[5], all_stops[6]]):
+            journey_stop = UserJourneyStop(
+                user_journey_id=journey3.id,
+                stop_id=stop.id,
+                stop_order=idx + 1,
+            )
+            db.add(journey_stop)
+
+        user_journeys.append(journey3)
+
+    db.commit()
+    print(f"   ✓ Created {len(user_journeys)} user journeys with stops")
+    return user_journeys
+
+
+def create_reports(db, vehicle_trips, vehicles, users):
     """Create sample reports/incidents."""
     print("\n🚨 Creating reports...")
 
@@ -590,7 +812,7 @@ def create_reports(db, journeys, vehicles, users):
 
     # Report from driver (confidence 100%)
     report1 = Report(
-        journey_id=journeys[0].id,
+        vehicle_trip_id=vehicle_trips[0].id,
         vehicle_id=vehicles[0].id,
         user_id=drivers[0].id,
         category="TRAFFIC_JAM",
@@ -604,7 +826,7 @@ def create_reports(db, journeys, vehicles, users):
 
     # Report from passenger (confidence 50%)
     report2 = Report(
-        journey_id=journeys[0].id,
+        vehicle_trip_id=vehicle_trips[0].id,
         vehicle_id=vehicles[0].id,
         user_id=passengers[0].id,
         category="OVERCROWDED",
@@ -618,7 +840,7 @@ def create_reports(db, journeys, vehicles, users):
 
     # Report from dispatcher (confidence 100%)
     report3 = Report(
-        journey_id=journeys[2].id,
+        vehicle_trip_id=vehicle_trips[2].id,
         vehicle_id=vehicles[1].id,
         user_id=dispatcher.id,
         category="VEHICLE_BREAKDOWN",
@@ -632,7 +854,7 @@ def create_reports(db, journeys, vehicles, users):
 
     # Report from passenger (confidence 50%)
     report4 = Report(
-        journey_id=journeys[1].id,
+        vehicle_trip_id=vehicle_trips[1].id,
         vehicle_id=vehicles[3].id,
         user_id=passengers[1].id,
         category="DIRTY_VEHICLE",
@@ -646,7 +868,7 @@ def create_reports(db, journeys, vehicles, users):
 
     # Report from driver (confidence 100%) - resolved
     report5 = Report(
-        journey_id=journeys[4].id,
+        vehicle_trip_id=vehicle_trips[4].id,
         vehicle_id=vehicles[4].id,
         user_id=drivers[1].id,
         category="ANIMAL",
@@ -671,8 +893,12 @@ def print_summary(
     vehicles,
     routes,
     route_stops,
-    journeys,
+    route_segments,
+    shape_points,
+    vehicle_trips,
     journey_data_list,
+    user_journeys,
+    tickets,
     reports,
 ):
     """Print summary of created data."""
@@ -691,20 +917,36 @@ def print_summary(
     print(f"   - With Driver:    {len([v for v in vehicles if v.current_driver_id])}")
     print(f"🚌 Routes:           {len(routes)}")
     print(f"📍 Route Stops:      {len(route_stops)}")
-    print(f"🚀 Journeys:         {len(journeys)}")
+    print(f"🗺️  Route Segments:   {len(route_segments)}")
+    print(f"📌 Shape Points:     {len(shape_points)}")
     print(
-        f"   - In Progress:    {len([j for j in journeys if j.current_status == 'IN_PROGRESS'])}"
+        f"   - Avg per Segment: {len(shape_points) // len(route_segments) if route_segments else 0}"
+    )
+    print(f"🚀 Vehicle Trips:    {len(vehicle_trips)}")
+    print(
+        f"   - In Progress:    {len([vt for vt in vehicle_trips if vt.current_status == 'IN_PROGRESS'])}"
     )
     print(
-        f"   - Planned:        {len([j for j in journeys if j.current_status == 'PLANNED'])}"
+        f"   - Planned:        {len([vt for vt in vehicle_trips if vt.current_status == 'PLANNED'])}"
     )
     print(
-        f"   - Completed:      {len([j for j in journeys if j.current_status == 'COMPLETED'])}"
+        f"   - Completed:      {len([vt for vt in vehicle_trips if vt.current_status == 'COMPLETED'])}"
     )
     print(
-        f"   - Delayed:        {len([j for j in journeys if j.current_status == 'DELAYED'])}"
+        f"   - Delayed:        {len([vt for vt in vehicle_trips if vt.current_status == 'DELAYED'])}"
     )
     print(f"📊 Sensor Readings:  {len(journey_data_list)}")
+    print(f"👤 User Journeys:    {len(user_journeys)}")
+    print(f"   - Saved:          {len([uj for uj in user_journeys if uj.is_saved])}")
+    print(f"   - Active:         {len([uj for uj in user_journeys if uj.is_active])}")
+    print(f"🎟️  Tickets:          {len(tickets)}")
+    active_tickets = [
+        t for t in tickets if t.valid_from <= datetime.now() <= t.valid_to
+    ]
+    print(f"   - Active:         {len(active_tickets)}")
+    print(
+        f"   - Train Tickets:  {len([t for t in tickets if t.ticket_type == 'TRAIN_ROUTE'])}"
+    )
     print(f"🚨 Reports:          {len(reports)}")
     print(f"   - High Conf:      {len([r for r in reports if r.confidence == 100])}")
     print(f"   - Low Conf:       {len([r for r in reports if r.confidence == 50])}")
@@ -740,9 +982,13 @@ def seed_database():
         vehicles = create_vehicles(db, vehicle_types, users)
         routes = create_routes(db, stops, vehicles)
         route_stops = create_route_stops(db, routes, stops)
-        journeys = create_journeys(db, routes, users)
-        journey_data_list = create_journey_data(db, journeys, users)
-        reports = create_reports(db, journeys, vehicles, users)
+        route_segments = create_route_segments(db, stops)
+        shape_points = create_shape_points(db, route_segments)
+        vehicle_trips = create_vehicle_trips(db, routes, users)
+        journey_data_list = create_journey_data(db, vehicle_trips, users)
+        user_journeys = create_user_journeys(db, users, stops)
+        tickets = create_tickets(db, users, vehicle_trips)
+        reports = create_reports(db, vehicle_trips, vehicles, users)
 
         # Print summary
         print_summary(
@@ -752,8 +998,12 @@ def seed_database():
             vehicles,
             routes,
             route_stops,
-            journeys,
+            route_segments,
+            shape_points,
+            vehicle_trips,
             journey_data_list,
+            user_journeys,
+            tickets,
             reports,
         )
 

@@ -31,12 +31,12 @@ def get_reports(db: Session, skip: int = 0, limit: int = 100) -> List[db_models.
     return db.query(db_models.Report).offset(skip).limit(limit).all()
 
 
-def get_reports_by_journey(
-    db: Session, journey_id: str, skip: int = 0, limit: int = 100
+def get_reports_by_vehicle_trip(
+    db: Session, vehicle_trip_id: str, skip: int = 0, limit: int = 100
 ) -> List[db_models.Report]:
     return (
         db.query(db_models.Report)
-        .filter(db_models.Report.journey_id == journey_id)
+        .filter(db_models.Report.vehicle_trip_id == vehicle_trip_id)
         .offset(skip)
         .limit(limit)
         .all()

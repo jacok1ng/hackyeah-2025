@@ -29,3 +29,13 @@ class ReportCategory(str, Enum):
     OVERCROWDED = "OVERCROWDED"
     DIRTY_VEHICLE = "DIRTY_VEHICLE"
     MEDICAL_HELP = "MEDICAL_HELP"
+
+
+class TicketType(str, Enum):
+    MONTHLY = "MONTHLY"
+    DAILY = "DAILY"
+    TWO_HOUR = "TWO_HOUR"
+    FOUR_HOUR = "FOUR_HOUR"
+    ONE_HOUR = "ONE_HOUR"
+    THIRTY_MIN = "THIRTY_MIN"
+    TRAIN_ROUTE = "TRAIN_ROUTE"

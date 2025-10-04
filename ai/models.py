@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID, uuid4
 
-from enums import JourneyStatus, ReportCategory, RouteStatus, UserRole
+from enums import JourneyStatus, ReportCategory, RouteStatus, TicketType, UserRole
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -136,7 +136,7 @@ class RouteStop(RouteStopBase):
         from_attributes = True
 
 
-class JourneyBase(BaseModel):
+class VehicleTripBase(BaseModel):
     route_id: UUID
     driver_id: Optional[UUID] = None
     actual_departure: Optional[datetime] = None
@@ -145,11 +145,11 @@ class JourneyBase(BaseModel):
     current_status: JourneyStatus = JourneyStatus.PLANNED
 
 
-class JourneyCreate(JourneyBase):
+class VehicleTripCreate(VehicleTripBase):
     pass
 
 
-class JourneyUpdate(BaseModel):
+class VehicleTripUpdate(BaseModel):
     route_id: Optional[UUID] = None
     driver_id: Optional[UUID] = None
     actual_departure: Optional[datetime] = None
@@ -158,7 +158,7 @@ class JourneyUpdate(BaseModel):
     current_status: Optional[JourneyStatus] = None
 
 
-class Journey(JourneyBase):
+class VehicleTrip(VehicleTripBase):
     id: UUID = Field(default_factory=uuid4)
     created_at: datetime = Field(default_factory=datetime.now)
 
@@ -201,7 +201,7 @@ class User(UserBase):
 
 
 class JourneyDataBase(BaseModel):
-    journey_id: UUID
+    vehicle_trip_id: UUID
     user_id: Optional[UUID] = None
     timestamp: datetime
     latitude: Optional[float] = None
@@ -244,7 +244,7 @@ class JourneyDataCreate(JourneyDataBase):
 
 
 class JourneyDataUpdate(BaseModel):
-    journey_id: Optional[UUID] = None
+    vehicle_trip_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
     timestamp: Optional[datetime] = None
     latitude: Optional[float] = None
@@ -290,7 +290,7 @@ class JourneyData(JourneyDataBase):
 
 
 class ReportBase(BaseModel):
-    journey_id: UUID
+    vehicle_trip_id: UUID
     vehicle_id: UUID
     user_id: UUID
     category: ReportCategory
@@ -300,7 +300,7 @@ class ReportBase(BaseModel):
 
 
 class ReportCreate(BaseModel):
-    journey_id: UUID
+    vehicle_trip_id: UUID
     vehicle_id: UUID
     category: ReportCategory
     description: Optional[str] = None
@@ -321,6 +321,155 @@ class Report(ReportBase):
     confidence: int
     created_at: datetime = Field(default_factory=datetime.now)
     resolved_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TicketBase(BaseModel):
+    user_id: UUID
+    ticket_type: TicketType
+    valid_from: datetime
+    valid_to: datetime
+    vehicle_trip_id: Optional[UUID] = None
+
+
+class TicketCreate(BaseModel):
+    ticket_type: TicketType
+    valid_from: datetime
+    valid_to: datetime
+    vehicle_trip_id: Optional[UUID] = None
+
+
+class TicketUpdate(BaseModel):
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None
+    vehicle_trip_id: Optional[UUID] = None
+
+
+class Ticket(TicketBase):
+    id: UUID = Field(default_factory=uuid4)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    class Config:
+        from_attributes = True
+
+
+class UserJourneyBase(BaseModel):
+    user_id: UUID
+    name: str
+    is_saved: bool = False
+    is_active: bool = False
+
+
+class UserJourneyCreate(BaseModel):
+    name: str
+    is_saved: bool = False
+    is_active: bool = False
+
+
+class UserJourneyUpdate(BaseModel):
+    name: Optional[str] = None
+    is_saved: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class UserJourney(UserJourneyBase):
+    id: UUID = Field(default_factory=uuid4)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class UserJourneyStopBase(BaseModel):
+    user_journey_id: UUID
+    stop_id: UUID
+    stop_order: int
+
+
+class UserJourneyStopCreate(BaseModel):
+    stop_id: UUID
+    stop_order: int
+
+
+class UserJourneyStopUpdate(BaseModel):
+    stop_id: Optional[UUID] = None
+    stop_order: Optional[int] = None
+
+
+class UserJourneyStop(UserJourneyStopBase):
+    id: UUID = Field(default_factory=uuid4)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    class Config:
+        from_attributes = True
+
+
+class RouteSegmentBase(BaseModel):
+    from_stop_id: UUID
+    to_stop_id: UUID
+    shape_id: str
+
+
+class RouteSegmentCreate(BaseModel):
+    from_stop_id: UUID
+    to_stop_id: UUID
+    shape_id: str
+
+
+class RouteSegmentUpdate(BaseModel):
+    shape_id: Optional[str] = None
+
+
+class RouteSegment(RouteSegmentBase):
+    id: UUID = Field(default_factory=uuid4)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    class Config:
+        from_attributes = True
+
+
+class ShapePointBase(BaseModel):
+    shape_id: str
+    shape_pt_lat: float
+    shape_pt_lon: float
+    shape_pt_sequence: int
+    shape_dist_traveled: Optional[float] = None
+
+
+class ShapePointCreate(BaseModel):
+    shape_pt_lat: float
+    shape_pt_lon: float
+    shape_pt_sequence: int
+    shape_dist_traveled: Optional[float] = None
+
+
+class ShapePointUpdate(BaseModel):
+    shape_pt_lat: Optional[float] = None
+    shape_pt_lon: Optional[float] = None
+    shape_pt_sequence: Optional[int] = None
+    shape_dist_traveled: Optional[float] = None
+
+
+class ShapePoint(ShapePointBase):
+    id: UUID = Field(default_factory=uuid4)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    class Config:
+        from_attributes = True
+
+
+class FullRouteResponse(BaseModel):
+    """Full GPS route with all shape points for a journey."""
+
+    total_stops: int
+    total_segments: int
+    total_points: int
+    segments: List[
+        dict
+    ]  # List of {from_stop, to_stop, shape_id, points: List[ShapePoint]}
 
     class Config:
         from_attributes = True

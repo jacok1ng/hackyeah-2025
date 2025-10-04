@@ -1,11 +1,4 @@
 # Import all CRUD functions to maintain backward compatibility
-from crud.journey import (
-    create_journey,
-    delete_journey,
-    get_journey,
-    get_journeys,
-    update_journey,
-)
 from crud.journey_data import (
     create_journey_data,
     delete_journey_data,
@@ -19,12 +12,21 @@ from crud.report import (
     get_report,
     get_reports,
     get_reports_by_category,
-    get_reports_by_journey,
     get_reports_by_vehicle,
+    get_reports_by_vehicle_trip,
     resolve_report,
     update_report,
 )
 from crud.route import create_route, delete_route, get_route, get_routes, update_route
+from crud.route_segment import (
+    create_route_segment,
+    delete_route_segment,
+    get_route_segment,
+    get_route_segment_by_shape_id,
+    get_route_segment_by_stops,
+    get_route_segments,
+    update_route_segment,
+)
 from crud.route_stop import (
     create_route_stop,
     delete_route_stop,
@@ -32,14 +34,57 @@ from crud.route_stop import (
     get_route_stops,
     update_route_stop,
 )
+from crud.shape_point import (
+    create_shape_point,
+    create_shape_points_batch,
+    delete_all_shape_points,
+    delete_shape_point,
+    get_shape_point,
+    get_shape_points,
+    get_shape_points_by_shape_id,
+    update_shape_point,
+)
 from crud.stop import create_stop, delete_stop, get_stop, get_stops, update_stop
+from crud.ticket import (
+    create_ticket,
+    delete_ticket,
+    get_active_user_tickets,
+    get_ticket,
+    get_tickets,
+    get_user_tickets,
+    update_ticket,
+)
 from crud.user import create_user, delete_user, get_user, get_users, update_user
+from crud.user_journey import (
+    create_user_journey,
+    delete_user_journey,
+    get_user_active_journey,
+    get_user_journey,
+    get_user_journeys,
+    get_user_saved_journeys,
+    update_user_journey,
+)
+from crud.user_journey_stop import (
+    create_user_journey_stop,
+    delete_all_user_journey_stops,
+    delete_user_journey_stop,
+    get_user_journey_stop,
+    get_user_journey_stops,
+    update_user_journey_stop,
+)
 from crud.vehicle import (
     create_vehicle,
     delete_vehicle,
     get_vehicle,
     get_vehicles,
     update_vehicle,
+)
+from crud.vehicle_trip import (
+    create_vehicle_trip,
+    delete_vehicle_trip,
+    get_vehicle_trip,
+    get_vehicle_trips,
+    update_vehicle_trip,
 )
 from crud.vehicle_type import create_vehicle_type, get_vehicle_type, get_vehicle_types
 
@@ -72,12 +117,12 @@ __all__ = [
     "get_route_stops",
     "update_route_stop",
     "delete_route_stop",
-    # Journey
-    "create_journey",
-    "get_journey",
-    "get_journeys",
-    "update_journey",
-    "delete_journey",
+    # VehicleTrip
+    "create_vehicle_trip",
+    "get_vehicle_trip",
+    "get_vehicle_trips",
+    "update_vehicle_trip",
+    "delete_vehicle_trip",
     # User
     "create_user",
     "get_user",
@@ -94,10 +139,50 @@ __all__ = [
     "create_report",
     "get_report",
     "get_reports",
-    "get_reports_by_journey",
+    "get_reports_by_vehicle_trip",
     "get_reports_by_vehicle",
     "get_reports_by_category",
     "update_report",
     "resolve_report",
     "delete_report",
+    # Ticket
+    "create_ticket",
+    "get_ticket",
+    "get_tickets",
+    "get_user_tickets",
+    "get_active_user_tickets",
+    "update_ticket",
+    "delete_ticket",
+    # User Journey
+    "create_user_journey",
+    "get_user_journey",
+    "get_user_journeys",
+    "get_user_saved_journeys",
+    "get_user_active_journey",
+    "update_user_journey",
+    "delete_user_journey",
+    # User Journey Stop
+    "create_user_journey_stop",
+    "get_user_journey_stop",
+    "get_user_journey_stops",
+    "update_user_journey_stop",
+    "delete_user_journey_stop",
+    "delete_all_user_journey_stops",
+    # Route Segment
+    "create_route_segment",
+    "get_route_segment",
+    "get_route_segment_by_shape_id",
+    "get_route_segment_by_stops",
+    "get_route_segments",
+    "update_route_segment",
+    "delete_route_segment",
+    # Shape Point
+    "create_shape_point",
+    "create_shape_points_batch",
+    "get_shape_point",
+    "get_shape_points",
+    "get_shape_points_by_shape_id",
+    "update_shape_point",
+    "delete_shape_point",
+    "delete_all_shape_points",
 ]
