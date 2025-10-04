@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     journey_data,
     journeys,
+    reports,
     route_stops,
     routes,
     stops,
@@ -42,6 +43,7 @@ modules = [
     journeys,
     users,
     journey_data,
+    reports,
 ]
 for module in modules:
     app.include_router(module.router)

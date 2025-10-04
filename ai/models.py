@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID, uuid4
 
-from enums import JourneyStatus, RouteStatus, UserRole
+from enums import JourneyStatus, ReportCategory, RouteStatus, UserRole
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -284,6 +284,43 @@ class JourneyDataUpdate(BaseModel):
 
 class JourneyData(JourneyDataBase):
     id: UUID = Field(default_factory=uuid4)
+
+    class Config:
+        from_attributes = True
+
+
+class ReportBase(BaseModel):
+    journey_id: UUID
+    vehicle_id: UUID
+    user_id: UUID
+    category: ReportCategory
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
+class ReportCreate(BaseModel):
+    journey_id: UUID
+    vehicle_id: UUID
+    category: ReportCategory
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
+class ReportUpdate(BaseModel):
+    category: Optional[ReportCategory] = None
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    resolved_at: Optional[datetime] = None
+
+
+class Report(ReportBase):
+    id: UUID = Field(default_factory=uuid4)
+    confidence: int
+    created_at: datetime = Field(default_factory=datetime.now)
+    resolved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

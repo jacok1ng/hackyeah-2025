@@ -17,6 +17,7 @@ from database import SessionLocal, init_db
 from db_models import (
     Journey,
     JourneyData,
+    Report,
     Route,
     RouteStop,
     Stop,
@@ -576,6 +577,93 @@ def create_journey_data(db, journeys, users):
     return journey_data_list
 
 
+def create_reports(db, journeys, vehicles, users):
+    """Create sample reports/incidents."""
+    print("\n🚨 Creating reports...")
+
+    reports = []
+
+    # Get users by role
+    drivers = [u for u in users if u.role == "DRIVER"]
+    passengers = [u for u in users if u.role == "PASSENGER"]
+    dispatcher = next(u for u in users if u.role == "DISPATCHER")
+
+    # Report from driver (confidence 100%)
+    report1 = Report(
+        journey_id=journeys[0].id,
+        vehicle_id=vehicles[0].id,
+        user_id=drivers[0].id,
+        category="TRAFFIC_JAM",
+        confidence=100,
+        description="Heavy traffic on main road, 15 minutes delay expected",
+        latitude=52.2297,
+        longitude=21.0122,
+    )
+    db.add(report1)
+    reports.append(report1)
+
+    # Report from passenger (confidence 50%)
+    report2 = Report(
+        journey_id=journeys[0].id,
+        vehicle_id=vehicles[0].id,
+        user_id=passengers[0].id,
+        category="OVERCROWDED",
+        confidence=50,
+        description="Bus is very crowded, hard to get on",
+        latitude=52.2131,
+        longitude=21.0244,
+    )
+    db.add(report2)
+    reports.append(report2)
+
+    # Report from dispatcher (confidence 100%)
+    report3 = Report(
+        journey_id=journeys[2].id,
+        vehicle_id=vehicles[1].id,
+        user_id=dispatcher.id,
+        category="VEHICLE_BREAKDOWN",
+        confidence=100,
+        description="Engine warning light on, vehicle needs inspection",
+        latitude=52.2319,
+        longitude=21.0067,
+    )
+    db.add(report3)
+    reports.append(report3)
+
+    # Report from passenger (confidence 50%)
+    report4 = Report(
+        journey_id=journeys[1].id,
+        vehicle_id=vehicles[3].id,
+        user_id=passengers[1].id,
+        category="DIRTY_VEHICLE",
+        confidence=50,
+        description="Tram interior needs cleaning",
+        latitude=52.2496,
+        longitude=21.0121,
+    )
+    db.add(report4)
+    reports.append(report4)
+
+    # Report from driver (confidence 100%) - resolved
+    report5 = Report(
+        journey_id=journeys[4].id,
+        vehicle_id=vehicles[4].id,
+        user_id=drivers[1].id,
+        category="ANIMAL",
+        confidence=100,
+        description="Dog on tracks, stopped for safety",
+        latitude=52.2398,
+        longitude=20.9224,
+        resolved_at=datetime.now() - timedelta(minutes=20),
+    )
+    db.add(report5)
+    reports.append(report5)
+
+    db.commit()
+    print(f"   ✓ Created {len(reports)} reports")
+    return reports
+
+
 def print_summary(
     vehicle_types,
     stops,
@@ -585,6 +673,7 @@ def print_summary(
     route_stops,
     journeys,
     journey_data_list,
+    reports,
 ):
     """Print summary of created data."""
     print("\n" + "=" * 50)
@@ -616,6 +705,10 @@ def print_summary(
         f"   - Delayed:        {len([j for j in journeys if j.current_status == 'DELAYED'])}"
     )
     print(f"📊 Sensor Readings:  {len(journey_data_list)}")
+    print(f"🚨 Reports:          {len(reports)}")
+    print(f"   - High Conf:      {len([r for r in reports if r.confidence == 100])}")
+    print(f"   - Low Conf:       {len([r for r in reports if r.confidence == 50])}")
+    print(f"   - Resolved:       {len([r for r in reports if r.resolved_at])}")
     print("=" * 50)
     print("\n✅ Database seeded successfully!")
     print("🌐 You can now explore the API at: http://localhost:8000/docs")
@@ -649,6 +742,7 @@ def seed_database():
         route_stops = create_route_stops(db, routes, stops)
         journeys = create_journeys(db, routes, users)
         journey_data_list = create_journey_data(db, journeys, users)
+        reports = create_reports(db, journeys, vehicles, users)
 
         # Print summary
         print_summary(
@@ -660,6 +754,7 @@ def seed_database():
             route_stops,
             journeys,
             journey_data_list,
+            reports,
         )
 
     except Exception as e:

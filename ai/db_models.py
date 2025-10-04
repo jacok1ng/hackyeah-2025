@@ -38,6 +38,7 @@ class Vehicle(Base):
     vehicle_type = relationship("VehicleType", back_populates="vehicles")
     current_driver = relationship("User", back_populates="assigned_vehicles")
     routes = relationship("Route", back_populates="vehicle")
+    reports = relationship("Report", back_populates="vehicle")
 
 
 class Stop(Base):
@@ -111,6 +112,7 @@ class Journey(Base):
     route = relationship("Route", back_populates="journeys")
     driver = relationship("User", back_populates="journeys")
     journey_data = relationship("JourneyData", back_populates="journey")
+    reports = relationship("Report", back_populates="journey")
 
 
 class User(Base):
@@ -131,6 +133,7 @@ class User(Base):
     journeys = relationship("Journey", back_populates="driver")
     journey_data = relationship("JourneyData", back_populates="user")
     assigned_vehicles = relationship("Vehicle", back_populates="current_driver")
+    reports = relationship("Report", back_populates="user")
 
 
 class JourneyData(Base):
@@ -182,3 +185,23 @@ class JourneyData(Base):
 
     journey = relationship("Journey", back_populates="journey_data")
     user = relationship("User", back_populates="journey_data")
+
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    journey_id = Column(String, ForeignKey("journeys.id"), nullable=False)
+    vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    category = Column(String, nullable=False)
+    confidence = Column(Integer, nullable=False)
+    description = Column(String, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+    resolved_at = Column(DateTime, nullable=True)
+
+    journey = relationship("Journey", back_populates="reports")
+    vehicle = relationship("Vehicle", back_populates="reports")
+    user = relationship("User", back_populates="reports")

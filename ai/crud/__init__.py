@@ -13,6 +13,17 @@ from crud.journey_data import (
     get_journey_data_list,
     update_journey_data,
 )
+from crud.report import (
+    create_report,
+    delete_report,
+    get_report,
+    get_reports,
+    get_reports_by_category,
+    get_reports_by_journey,
+    get_reports_by_vehicle,
+    resolve_report,
+    update_report,
+)
 from crud.route import create_route, delete_route, get_route, get_routes, update_route
 from crud.route_stop import (
     create_route_stop,
@@ -79,4 +90,14 @@ __all__ = [
     "get_journey_data_list",
     "update_journey_data",
     "delete_journey_data",
+    # Report
+    "create_report",
+    "get_report",
+    "get_reports",
+    "get_reports_by_journey",
+    "get_reports_by_vehicle",
+    "get_reports_by_category",
+    "update_report",
+    "resolve_report",
+    "delete_report",
 ]
