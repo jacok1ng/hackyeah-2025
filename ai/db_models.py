@@ -114,6 +114,7 @@ class VehicleTrip(Base):
     journey_data = relationship("JourneyData", back_populates="vehicle_trip")
     reports = relationship("Report", back_populates="vehicle_trip")
     tickets = relationship("Ticket", back_populates="vehicle_trip")
+    feedbacks = relationship("Feedback", back_populates="vehicle_trip")
 
 
 class User(Base):
@@ -140,6 +141,8 @@ class User(Base):
     reports = relationship("Report", back_populates="user")
     tickets = relationship("Ticket", back_populates="user")
     user_journeys = relationship("UserJourney", back_populates="user")
+    feedbacks = relationship("Feedback", back_populates="user")
+    report_verifications = relationship("ReportVerification", back_populates="user")
 
 
 class JourneyData(Base):
@@ -209,12 +212,18 @@ class Report(Base):
     description = Column(String, nullable=True)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    is_verified = Column(Boolean, default=False)
+    verified_at = Column(DateTime, nullable=True)
+    verified_by_admin = Column(
+        Boolean, default=False
+    )  # True if verified by driver/dispatcher
     created_at = Column(DateTime, default=datetime.now)
     resolved_at = Column(DateTime, nullable=True)
 
     vehicle_trip = relationship("VehicleTrip", back_populates="reports")
     vehicle = relationship("Vehicle", back_populates="reports")
     user = relationship("User", back_populates="reports")
+    verifications = relationship("ReportVerification", back_populates="report")
 
 
 class Ticket(Base):
@@ -246,12 +255,14 @@ class UserJourney(Base):
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
     current_stop_index = Column(Integer, default=0)
+    feedback_requested = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="user_journeys")
     stops = relationship("UserJourneyStop", back_populates="user_journey")
     journey_data = relationship("JourneyData", back_populates="user_journey")
+    feedbacks = relationship("Feedback", back_populates="user_journey")
 
 
 class UserJourneyStop(Base):
@@ -295,3 +306,42 @@ class ShapePoint(Base):
     created_at = Column(DateTime, default=datetime.now)
 
     route_segment = relationship("RouteSegment", back_populates="shape_points")
+
+
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    user_journey_id = Column(String, ForeignKey("user_journeys.id"), nullable=False)
+    vehicle_trip_id = Column(String, ForeignKey("vehicle_trips.id"), nullable=True)
+
+    # Rating fields (1-5 scale)
+    overall_rating = Column(Integer, nullable=True)
+    cleanliness_rating = Column(Integer, nullable=True)
+    punctuality_rating = Column(Integer, nullable=True)
+    driver_rating = Column(Integer, nullable=True)
+    comfort_rating = Column(Integer, nullable=True)
+
+    # Text feedback
+    comment = Column(String, nullable=True)
+    improvements = Column(String, nullable=True)  # What would you improve?
+
+    created_at = Column(DateTime, default=datetime.now)
+
+    user = relationship("User", back_populates="feedbacks")
+    user_journey = relationship("UserJourney", back_populates="feedbacks")
+    vehicle_trip = relationship("VehicleTrip", back_populates="feedbacks")
+
+
+class ReportVerification(Base):
+    __tablename__ = "report_verifications"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    report_id = Column(String, ForeignKey("reports.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    verified = Column(Boolean, nullable=False)  # True = confirm, False = deny
+    created_at = Column(DateTime, default=datetime.now)
+
+    report = relationship("Report", back_populates="verifications")
+    user = relationship("User", back_populates="report_verifications")

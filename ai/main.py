@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     auth,
+    feedbacks,
     journey_data,
     reports,
     route_segments,
@@ -54,6 +55,7 @@ modules = [
     reports,
     tickets,
     user_journeys,
+    feedbacks,
 ]
 for module in modules:
     app.include_router(module.router)

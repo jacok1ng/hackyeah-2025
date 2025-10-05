@@ -345,11 +345,36 @@ class ReportUpdate(BaseModel):
 class Report(ReportBase):
     id: UUID = Field(default_factory=uuid4)
     confidence: int
+    is_verified: bool = False
+    verified_at: Optional[datetime] = None
+    verified_by_admin: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
     resolved_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class ReportVerificationCreate(BaseModel):
+    """Report verification model."""
+
+    verified: bool  # True = confirm report, False = deny report
+
+
+class ReportVerificationStatus(BaseModel):
+    """Current verification status of a report."""
+
+    report_id: UUID
+    is_verified: bool
+    verified_by_admin: bool
+    verifications_count: int
+    confirmations_count: int
+    denials_count: int
+    total_users_on_vehicle: int
+    required_confirmations: int
+    verification_percentage: float
+    can_verify: bool  # Can current user verify?
+    user_verified: Optional[bool] = None  # None if not verified, True/False otherwise
 
 
 class TicketBase(BaseModel):
@@ -394,6 +419,7 @@ class UserJourneyBase(BaseModel):
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     current_stop_index: int = 0
+    feedback_requested: bool = False
 
 
 class UserJourneyCreate(BaseModel):
@@ -415,6 +441,7 @@ class UserJourneyUpdate(BaseModel):
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     current_stop_index: Optional[int] = None
+    feedback_requested: Optional[bool] = None
 
 
 class UserJourney(UserJourneyBase):
@@ -600,6 +627,8 @@ class JourneyProgressResponse(BaseModel):
     current_stop_index: int
     total_stops: int
     progress_percentage: float
+    feedback_requested: bool = False
+    journey_completed: bool = False
 
 
 class StartJourneyResponse(BaseModel):
@@ -612,3 +641,42 @@ class StartJourneyResponse(BaseModel):
     estimated_arrival: Optional[datetime] = None
     total_stops: int
     total_distance_meters: Optional[float] = None
+
+
+class FeedbackBase(BaseModel):
+    """Base feedback model."""
+
+    user_id: UUID
+    user_journey_id: UUID
+    vehicle_trip_id: Optional[UUID] = None
+    overall_rating: Optional[int] = None
+    cleanliness_rating: Optional[int] = None
+    punctuality_rating: Optional[int] = None
+    driver_rating: Optional[int] = None
+    comfort_rating: Optional[int] = None
+    comment: Optional[str] = None
+    improvements: Optional[str] = None
+
+
+class FeedbackCreate(BaseModel):
+    """Feedback creation model. user_id will be set automatically from auth."""
+
+    user_journey_id: UUID
+    vehicle_trip_id: Optional[UUID] = None
+    overall_rating: Optional[int] = None
+    cleanliness_rating: Optional[int] = None
+    punctuality_rating: Optional[int] = None
+    driver_rating: Optional[int] = None
+    comfort_rating: Optional[int] = None
+    comment: Optional[str] = None
+    improvements: Optional[str] = None
+
+
+class Feedback(FeedbackBase):
+    """Feedback model with ID and timestamp."""
+
+    id: UUID = Field(default_factory=uuid4)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+    class Config:
+        from_attributes = True

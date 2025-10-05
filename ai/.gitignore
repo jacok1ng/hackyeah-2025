@@ -31,3 +31,7 @@ GTFS_KRK_T/
 # Route simulation generated files
 route_simulation/*.png
 route_simulation/*.csv
+
+# Environment variables
+.env
+.env.local

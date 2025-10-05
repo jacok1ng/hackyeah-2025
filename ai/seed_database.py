@@ -19,7 +19,7 @@ import shutil
 import sqlite3
 import sys
 import zipfile
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from random import choice, randint, uniform
 from urllib.request import urlretrieve
 
@@ -545,16 +545,16 @@ def _get_valid_trips(trip_aggregates, vehicle_type_id):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT 
-                t.trip_id, 
-                t.starting_stop, 
-                t.ending_stop, 
-                t.scheduled_arrival, 
+            SELECT
+                t.trip_id,
+                t.starting_stop,
+                t.ending_stop,
+                t.scheduled_arrival,
                 t.scheduled_departure
             FROM temp_trip_stops t
             INNER JOIN stops s1 ON t.starting_stop = s1.id
             INNER JOIN stops s2 ON t.ending_stop = s2.id
-            WHERE s1.vehicle_type_id = ? 
+            WHERE s1.vehicle_type_id = ?
               AND s2.vehicle_type_id = ?
         """,
             (vehicle_type_id, vehicle_type_id),
@@ -675,11 +675,11 @@ def _get_valid_stop_times(stop_times_df, vehicle_type_id):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT 
-                st.trip_id, 
-                st.stop_id, 
-                st.arrival_time, 
-                st.departure_time, 
+            SELECT
+                st.trip_id,
+                st.stop_id,
+                st.arrival_time,
+                st.departure_time,
                 st.stop_sequence
             FROM temp_stop_times st
             INNER JOIN stops s ON st.stop_id = s.id

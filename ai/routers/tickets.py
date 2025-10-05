@@ -48,7 +48,7 @@ def get_my_active_tickets(
 
     now = datetime.now()
     active_tickets = [
-        t for t in user_tickets if t.valid_from <= now and t.valid_until >= now
+        t for t in user_tickets if t.valid_from <= now and t.valid_until >= now  # type: ignore
     ]
 
     return active_tickets

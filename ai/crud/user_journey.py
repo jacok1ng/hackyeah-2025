@@ -18,9 +18,7 @@ def create_user_journey(
     return db_user_journey
 
 
-def get_user_journey(
-    db: Session, journey_id: str
-) -> Optional[db_models.UserJourney]:
+def get_user_journey(db: Session, journey_id: str) -> Optional[db_models.UserJourney]:
     return (
         db.query(db_models.UserJourney)
         .filter(db_models.UserJourney.id == journey_id)
@@ -40,15 +38,13 @@ def get_user_journeys(
     )
 
 
-def get_user_saved_journeys(
-    db: Session, user_id: str
-) -> List[db_models.UserJourney]:
+def get_user_saved_journeys(db: Session, user_id: str) -> List[db_models.UserJourney]:
     """Get user's saved journeys (up to 10)."""
     return (
         db.query(db_models.UserJourney)
         .filter(
             db_models.UserJourney.user_id == user_id,
-            db_models.UserJourney.is_saved == True,
+            db_models.UserJourney.is_saved.is_(True),
         )
         .limit(10)
         .all()
@@ -63,7 +59,7 @@ def get_user_active_journey(
         db.query(db_models.UserJourney)
         .filter(
             db_models.UserJourney.user_id == user_id,
-            db_models.UserJourney.is_active == True,
+            db_models.UserJourney.is_active.is_(True),
         )
         .first()
     )

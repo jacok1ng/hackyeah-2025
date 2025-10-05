@@ -137,6 +137,23 @@ def create_journey_data(
         (current_stop_index / total_stops * 100) if total_stops > 0 else 0.0
     )
 
+    # Check if journey completed (at last stop and close to it)
+    journey_completed = False
+    feedback_requested = bool(user_journey.feedback_requested)  # type: ignore
+
+    # Detect journey completion:
+    # - User is at the last stop (current_stop_index == total_stops - 1)
+    # - Distance to end is very small (<100 meters)
+    if current_stop_index >= total_stops - 1:
+        if distance_info["distance_to_end"] and distance_info["distance_to_end"] < 100:
+            journey_completed = True
+
+            # Request feedback if not already requested
+            if not feedback_requested:
+                user_journey.feedback_requested = True  # type: ignore
+                db.commit()
+                feedback_requested = True
+
     return JourneyProgressResponse(
         on_time=timing_info["on_time"],
         delay_minutes=timing_info.get("delay_minutes"),
@@ -150,6 +167,8 @@ def create_journey_data(
         current_stop_index=current_stop_index,
         total_stops=total_stops,
         progress_percentage=progress_percentage,
+        feedback_requested=feedback_requested,
+        journey_completed=journey_completed,
     )
 
 

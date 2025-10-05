@@ -1,4 +1,5 @@
 # Import all CRUD functions to maintain backward compatibility
+from crud.feedback import create_feedback, get_all_feedbacks
 from crud.journey_data import (
     create_journey_data,
     get_journey_data,
@@ -16,6 +17,14 @@ from crud.report import (
     get_reports_by_vehicle_trip,
     resolve_report,
     update_report,
+)
+from crud.report_verification import (
+    check_verification_requirements,
+    create_report_verification,
+    get_report_verifications,
+    get_user_verification,
+    get_users_on_vehicle_trip,
+    verify_report_if_requirements_met,
 )
 from crud.route import create_route, delete_route, get_route, get_routes, update_route
 from crud.route_segment import (
@@ -134,6 +143,9 @@ __all__ = [
     "get_journey_data",
     "get_journey_data_list",
     "update_journey_data",
+    # Feedback
+    "create_feedback",
+    "get_all_feedbacks",
     # Report
     "create_report",
     "get_report",
@@ -145,6 +157,13 @@ __all__ = [
     "update_report",
     "resolve_report",
     "delete_report",
+    # Report Verification
+    "create_report_verification",
+    "get_report_verifications",
+    "get_user_verification",
+    "check_verification_requirements",
+    "verify_report_if_requirements_met",
+    "get_users_on_vehicle_trip",
     # Ticket
     "create_ticket",
     "get_ticket",
