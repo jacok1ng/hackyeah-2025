@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta
 from hashlib import md5
+from datetime import date, datetime, timedelta
 from typing import List
 
 import crud
 import googlemaps
 from database import get_db
+from db_models import UserJourney as UserJourneyDB
 from dependencies import get_current_user
+from enums import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import (
     FullRouteResponse,
@@ -34,8 +37,43 @@ def create_user_journey(
     """
     Create a new user journey for the authenticated user.
     Journey is automatically assigned to the authenticated user.
+
+    Triggers:
+    - If user is disabled and journey is scheduled for tomorrow, notifies DISPATCHER
+    - Sets notification_time to 30 minutes before journey start
     """
-    return crud.create_user_journey(db, journey, str(current_user.id))
+    # Create journey first
+    db_journey = crud.create_user_journey(db, journey, str(current_user.id))
+
+    # Set notification_time automatically if planned_date is provided
+    if journey.planned_date:
+        reminder_time = journey.planned_date - timedelta(minutes=30)
+        if reminder_time > datetime.now():
+            # Update notification_time directly in database
+            db_journey_model = (
+                db.query(UserJourneyDB)
+                .filter(UserJourneyDB.id == str(db_journey.id))
+                .first()
+            )
+            if db_journey_model:
+                db_journey_model.notification_time = reminder_time
+                db.commit()
+                db.refresh(db_journey_model)
+                # Update returned model
+                db_journey.notification_time = reminder_time
+
+    # Trigger 1: Notify DISPATCHER if disabled person schedules journey for next day
+    # This is returned as part of response, not stored in database
+    if bool(current_user.is_disabled) and journey.planned_date:
+        tomorrow = date.today() + timedelta(days=1)
+        if journey.planned_date.date() == tomorrow:
+            # TODO: In production, send actual notification to dispatchers
+            # For now, this would be handled by a separate notification service
+            print(
+                f"[NOTIFICATION] User {current_user.name} (disabled) scheduled journey for tomorrow"
+            )
+
+    return db_journey
 
 
 @router.get("/my", response_model=List[UserJourney])
