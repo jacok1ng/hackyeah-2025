@@ -2,6 +2,7 @@ from database import init_db_with_data
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import (
+    auth,
     journey_data,
     reports,
     route_segments,
@@ -39,6 +40,7 @@ app.add_middleware(
 )
 
 modules = [
+    auth,
     vehicle_types,
     vehicles,
     stops,

@@ -335,6 +335,8 @@ class TicketBase(BaseModel):
 
 
 class TicketCreate(BaseModel):
+    """Ticket creation model. user_id will be set automatically from auth."""
+
     ticket_type: TicketType
     valid_from: datetime
     valid_to: datetime
@@ -363,6 +365,8 @@ class UserJourneyBase(BaseModel):
 
 
 class UserJourneyCreate(BaseModel):
+    """UserJourney creation model. user_id will be set automatically from auth."""
+
     name: str
     is_saved: bool = False
     is_active: bool = False
@@ -473,3 +477,20 @@ class FullRouteResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class LoginRequest(BaseModel):
+    """Login credentials."""
+
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    """Login response with JWT token and user information."""
+
+    success: bool
+    message: str
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
+    user: Optional[dict] = None

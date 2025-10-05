@@ -2,6 +2,7 @@ from typing import List
 
 import crud
 from database import get_db
+from dependencies import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import (
     FullRouteResponse,
@@ -19,68 +20,118 @@ router = APIRouter(prefix="/user-journeys", tags=["user-journeys"])
 
 @router.post("/", response_model=UserJourney, status_code=status.HTTP_201_CREATED)
 def create_user_journey(
-    user_journey: UserJourneyCreate,
-    user_id: str,
+    journey: UserJourneyCreate,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     """
-    Create a new user journey.
-    - is_saved: True for saved journeys (up to 10 per user)
-    - is_active: True for the currently active journey (only 1 per user)
+    Create a new user journey for the authenticated user.
+    Journey is automatically assigned to the authenticated user.
     """
-    return crud.create_user_journey(db, user_journey, user_id)
+    return crud.create_user_journey(db, journey, str(current_user.id))
 
 
-@router.get("/user/{user_id}", response_model=List[UserJourney])
-def get_user_journeys(
-    user_id: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
+@router.get("/my", response_model=List[UserJourney])
+def get_my_journeys(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    """Get all journeys for a specific user."""
-    return crud.get_user_journeys(db, user_id, skip=skip, limit=limit)
+    """Get all journeys for the authenticated user."""
+    return crud.get_user_journeys(db, str(current_user.id), skip=skip, limit=limit)
 
 
-@router.get("/user/{user_id}/saved", response_model=List[UserJourney])
-def get_user_saved_journeys(user_id: str, db: Session = Depends(get_db)):
-    """Get user's saved journeys (up to 10)."""
-    return crud.get_user_saved_journeys(db, user_id)
+@router.get("/my/saved", response_model=List[UserJourney])
+def get_my_saved_journeys(
+    db: Session = Depends(get_db), current_user=Depends(get_current_user)
+):
+    """Get saved (not active) journeys for the authenticated user (max 10)."""
+    return crud.get_user_saved_journeys(db, str(current_user.id))
 
 
-@router.get("/user/{user_id}/active", response_model=UserJourney)
-def get_user_active_journey(user_id: str, db: Session = Depends(get_db)):
-    """Get user's currently active journey."""
-    db_journey = crud.get_user_active_journey(db, user_id)
-    if not db_journey:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active journey found for this user",
-        )
-    return db_journey
+@router.get("/my/active", response_model=UserJourney | None)
+def get_my_active_journey(
+    db: Session = Depends(get_db), current_user=Depends(get_current_user)
+):
+    """Get the active journey for the authenticated user."""
+    return crud.get_user_active_journey(db, str(current_user.id))
 
 
 @router.get("/{journey_id}", response_model=UserJourney)
-def get_user_journey(journey_id: str, db: Session = Depends(get_db)):
+def get_user_journey(
+    journey_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Get a specific user journey by ID.
+    User can only view their own journeys.
+    """
     db_journey = crud.get_user_journey(db, journey_id)
     if not db_journey:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
         )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view your own journeys",
+        )
+
     return db_journey
 
 
 @router.put("/{journey_id}", response_model=UserJourney)
 def update_user_journey(
-    journey_id: str, journey_update: UserJourneyUpdate, db: Session = Depends(get_db)
+    journey_id: str,
+    journey: UserJourneyUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    db_journey = crud.update_user_journey(db, journey_id, journey_update)
+    """
+    Update a user journey.
+    User can only update their own journeys.
+    """
+    db_journey = crud.get_user_journey(db, journey_id)
     if not db_journey:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
         )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own journeys",
+        )
+
+    db_journey = crud.update_user_journey(db, journey_id, journey)
     return db_journey
 
 
 @router.delete("/{journey_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user_journey(journey_id: str, db: Session = Depends(get_db)):
+def delete_user_journey(
+    journey_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Delete a user journey.
+    User can only delete their own journeys.
+    """
+    db_journey = crud.get_user_journey(db, journey_id)
+    if not db_journey:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
+        )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own journeys",
+        )
+
     success = crud.delete_user_journey(db, journey_id)
     if not success:
         raise HTTPException(
@@ -94,85 +145,160 @@ def delete_user_journey(journey_id: str, db: Session = Depends(get_db)):
     response_model=UserJourneyStop,
     status_code=status.HTTP_201_CREATED,
 )
-def add_stop_to_journey(
+def create_user_journey_stop(
     journey_id: str,
     stop: UserJourneyStopCreate,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    """Add a stop to a user journey."""
-    # Verify journey exists
+    """
+    Add a stop to a user journey.
+    User can only add stops to their own journeys.
+    """
     db_journey = crud.get_user_journey(db, journey_id)
     if not db_journey:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
+        )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only add stops to your own journeys",
         )
 
     return crud.create_user_journey_stop(db, journey_id, stop)
 
 
 @router.get("/{journey_id}/stops", response_model=List[UserJourneyStop])
-def get_journey_stops(journey_id: str, db: Session = Depends(get_db)):
-    """Get all stops for a user journey, ordered by stop_order."""
-    # Verify journey exists
+def get_user_journey_stops(
+    journey_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Get all stops for a user journey.
+    User can only view stops for their own journeys.
+    """
     db_journey = crud.get_user_journey(db, journey_id)
     if not db_journey:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
+        )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view stops for your own journeys",
         )
 
     return crud.get_user_journey_stops(db, journey_id)
 
 
 @router.put("/stops/{stop_id}", response_model=UserJourneyStop)
-def update_journey_stop(
-    stop_id: str, stop_update: UserJourneyStopUpdate, db: Session = Depends(get_db)
+def update_user_journey_stop(
+    stop_id: str,
+    stop: UserJourneyStopUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    """Update a stop in a user journey."""
-    db_stop = crud.update_user_journey_stop(db, stop_id, stop_update)
+    """
+    Update a user journey stop.
+    User can only update stops in their own journeys.
+    """
+    db_stop = crud.get_user_journey_stop(db, stop_id)
     if not db_stop:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Journey stop not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User journey stop not found"
         )
+
+    db_journey = crud.get_user_journey(db, str(db_stop.user_journey_id))
+    if db_journey and str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update stops in your own journeys",
+        )
+
+    db_stop = crud.update_user_journey_stop(db, stop_id, stop)
     return db_stop
 
 
 @router.delete("/stops/{stop_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_journey_stop(stop_id: str, db: Session = Depends(get_db)):
-    """Delete a stop from a user journey."""
+def delete_user_journey_stop(
+    stop_id: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)
+):
+    """
+    Delete a user journey stop.
+    User can only delete stops from their own journeys.
+    """
+    db_stop = crud.get_user_journey_stop(db, stop_id)
+    if not db_stop:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User journey stop not found"
+        )
+
+    db_journey = crud.get_user_journey(db, str(db_stop.user_journey_id))
+    if db_journey and str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete stops from your own journeys",
+        )
+
     success = crud.delete_user_journey_stop(db, stop_id)
     if not success:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Journey stop not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User journey stop not found"
         )
 
 
 @router.delete("/{journey_id}/stops", status_code=status.HTTP_204_NO_CONTENT)
-def delete_all_journey_stops(journey_id: str, db: Session = Depends(get_db)):
-    """Delete all stops from a user journey."""
-    # Verify journey exists
+def delete_all_stops_from_journey(
+    journey_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Delete all stops from a user journey.
+    User can only delete stops from their own journeys.
+    """
     db_journey = crud.get_user_journey(db, journey_id)
     if not db_journey:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
+        )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete stops from your own journeys",
         )
 
     crud.delete_all_user_journey_stops(db, journey_id)
 
 
 @router.get("/{journey_id}/full-route", response_model=FullRouteResponse)
-def get_user_journey_full_route(journey_id: str, db: Session = Depends(get_db)):
+def get_user_journey_full_route(
+    journey_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
     """
     Get the complete GPS route for a user journey.
     Returns all route segments and their GPS points in order.
+    User can only view routes for their own journeys.
     """
-    # Get user journey
     db_journey = crud.get_user_journey(db, journey_id)
     if not db_journey:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
         )
 
-    # Get stops for this journey (ordered by stop_order)
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view routes for your own journeys",
+        )
+
     journey_stops = crud.get_user_journey_stops(db, journey_id)
 
     if len(journey_stops) < 2:
@@ -183,7 +309,6 @@ def get_user_journey_full_route(journey_id: str, db: Session = Depends(get_db)):
             segments=[],
         )
 
-    # Build segments between consecutive stops
     segments = []
     total_points = 0
 
@@ -191,13 +316,11 @@ def get_user_journey_full_route(journey_id: str, db: Session = Depends(get_db)):
         from_stop = journey_stops[i]
         to_stop = journey_stops[i + 1]
 
-        # Find route segment between these stops
         segment = crud.get_route_segment_by_stops(
             db, str(from_stop.stop_id), str(to_stop.stop_id)
         )
 
         if segment:
-            # Get all GPS points for this segment
             points = crud.get_shape_points_by_shape_id(db, str(segment.shape_id))
             total_points += len(points)
 
@@ -219,7 +342,6 @@ def get_user_journey_full_route(journey_id: str, db: Session = Depends(get_db)):
                 }
             )
         else:
-            # No route segment found between these stops
             segments.append(
                 {
                     "from_stop_id": from_stop.stop_id,
