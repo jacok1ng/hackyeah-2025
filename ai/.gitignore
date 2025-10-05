@@ -32,6 +32,13 @@ GTFS_KRK_T/
 route_simulation/*.png
 route_simulation/*.csv
 
+# ML outputs
+ml/*.csv
+ml/*.png
+ml/*.json
+ml/*.txt
+ml/__pycache__/
+
 # Environment variables
 .env
 .env.local
