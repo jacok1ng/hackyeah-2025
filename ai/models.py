@@ -530,8 +530,8 @@ class RouteProposalRequest(BaseModel):
 
     start_point: str
     destination: str
-    api_key: str
     departure_datetime: datetime
+    api_key: Optional[str] = None  # Optional - will use env variable if not provided
 
 
 class StepInfo(BaseModel):
@@ -560,6 +560,8 @@ class RouteProposalsResponse(BaseModel):
 
     proposals: List[RouteProposal]
     total_proposals: int
+
+
 class SystemNotification(BaseModel):
     """System notification (not stored in database)."""
 
