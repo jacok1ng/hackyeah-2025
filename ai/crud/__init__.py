@@ -1,4 +1,11 @@
 # Import all CRUD functions to maintain backward compatibility
+from crud.delay_detection import (
+    detect_delay_from_historical_data,
+    detect_delay_from_verified_report,
+    handle_delay_detection,
+    send_alternative_route_to_users,
+    send_delay_notification_to_families,
+)
 from crud.feedback import create_feedback, get_all_feedbacks
 from crud.journey_data import (
     create_journey_data,
@@ -146,6 +153,12 @@ __all__ = [
     # Feedback
     "create_feedback",
     "get_all_feedbacks",
+    # Delay Detection
+    "detect_delay_from_historical_data",
+    "detect_delay_from_verified_report",
+    "send_alternative_route_to_users",
+    "send_delay_notification_to_families",
+    "handle_delay_detection",
     # Report
     "create_report",
     "get_report",

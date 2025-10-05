@@ -134,6 +134,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
+    family_members = Column(String, nullable=True)  # JSON array of user IDs
 
     vehicle_trips = relationship("VehicleTrip", back_populates="driver")
     journey_data = relationship("JourneyData", back_populates="user")

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Union
 
 import crud
-from crud import journey_tracking
+from crud import delay_detection, journey_tracking
 from database import get_db
 from db_models import Stop
 from db_models import UserJourney as UserJourneyDB
@@ -124,6 +124,16 @@ def create_journey_data(
     timing_info = journey_tracking.check_if_on_time(
         db, str(journey_data.user_journey_id), current_stop_index, elapsed_minutes
     )
+
+    # Check for delays and send notifications if detected
+    # This runs periodically with GPS updates to detect delays early
+    if journey_data.vehicle_trip_id:
+        delay_detection.handle_delay_detection(
+            db,
+            str(journey_data.vehicle_trip_id),
+            current_stop_index,
+            elapsed_minutes,
+        )
 
     # Get remaining stop names
     remaining_stop_names = []

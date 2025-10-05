@@ -240,4 +240,29 @@ def verify_report_if_requirements_met(db: Session, report_id: str) -> bool:
             author.badge = "New Reporter"  # type: ignore
 
     db.commit()
+
+    # Check if this is a delay-related report
+    from enums import ReportCategory
+
+    from crud.delay_detection import handle_delay_detection
+
+    delay_categories = [
+        ReportCategory.VEHICLE_BREAKDOWN.value,
+        ReportCategory.TRAFFIC_JAM.value,
+    ]
+
+    report_category = str(report.category)  # type: ignore
+    if report_category in delay_categories:
+        # Trigger delay detection and notifications
+        vehicle_trip_id = str(report.vehicle_trip_id)
+        delay_result = handle_delay_detection(db, vehicle_trip_id)
+
+        print("[DELAY DETECTION] Verified report triggered delay handling:")
+        print(f"  - Report ID: {report_id}")
+        print(f"  - Category: {report_category}")
+        print(f"  - Alternative routes sent: {delay_result['alternative_routes_sent']}")
+        print(
+            f"  - Family notifications sent: {delay_result['family_notifications_sent']}"
+        )
+
     return True

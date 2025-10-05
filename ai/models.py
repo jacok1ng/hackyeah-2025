@@ -182,6 +182,7 @@ class UserBase(BaseModel):
     badge: Optional[str] = None
     is_disabled: bool = False
     is_super_sporty: bool = False
+    family_members: Optional[List[UUID]] = None  # List of family member user IDs
 
 
 class UserCreate(UserBase):
