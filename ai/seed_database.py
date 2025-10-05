@@ -1,17 +1,29 @@
 """
 Database seeding script - populates the database with sample data.
 This script is fully self-contained:
+- Downloads latest GTFS data from Krakow transport
 - Removes old database if it exists
 - Creates new database with proper structure
 - Initializes vehicle types
 - Populates with sample data
+- Cleans up downloaded GTFS files
 
-Run this script: python seed_database.py
+Run this script: 
+    python seed_database.py              # Downloads and cleans up GTFS data
+    python seed_database.py --keep-gtfs  # Keep GTFS data after seeding
 """
 
 import os
-from datetime import datetime, timedelta
+import sys
+import shutil
+import zipfile
+from datetime import datetime, timedelta, time
 from random import choice, randint, uniform
+from urllib.request import urlretrieve
+import csv
+import pandas as pd
+import sqlite3
+from tqdm import tqdm
 
 from database import SessionLocal, init_db
 from db_models import (
@@ -25,6 +37,137 @@ from db_models import (
     VehicleType,
 )
 from init_data import VEHICLE_TYPES
+
+
+# ============================================================================
+# GTFS DATA HELPERS
+# ============================================================================
+
+def parse_gtfs_time(time_str):
+    """
+    Convert GTFS time string to datetime object.
+    
+    GTFS times can exceed 24:00:00 for trips that continue after midnight.
+    For example, '25:30:00' means 1:30 AM the next day.
+    
+    Args:
+        time_str: Time string in format 'HH:MM:SS'
+    
+    Returns:
+        datetime object or None if input is invalid
+    """
+    if not time_str or pd.isna(time_str):
+        return None
+    
+    # Parse time components
+    parts = time_str.strip().split(':')
+    hours = int(parts[0])
+    minutes = int(parts[1])
+    seconds = int(parts[2])
+    
+    # Handle times that exceed 24 hours (next day service)
+    days = hours // 24
+    hours = hours % 24
+    
+    # Create datetime using today as base reference
+    base_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    result = base_date + timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+    
+    return result
+
+
+def get_vehicle_type_mapping(vehicle_types):
+    """
+    Create a mapping of vehicle type codes to vehicle type objects.
+    
+    Returns:
+        dict: Mapping of folder names to (folder_path, vehicle_type) tuples
+    """
+    bus_type = next(vt for vt in vehicle_types if vt.code == "BUS")
+    tram_type = next(vt for vt in vehicle_types if vt.code == "TRAM")
+    train_type = next(vt for vt in vehicle_types if vt.code == "TRAIN")
+    
+    return [
+        ("GTFS_KRK_A", bus_type),   # Buses
+        ("GTFS_KRK_T", tram_type),  # Trams
+        ("GTFS_KRK_M", train_type), # Metro/Train
+    ]
+
+
+# ============================================================================
+# GTFS DATA DOWNLOAD & CLEANUP
+# ============================================================================
+
+# URLs for GTFS data feeds
+GTFS_URLS = [
+    ("https://gtfs.ztp.krakow.pl/GTFS_KRK_A.zip", "GTFS_KRK_A"),  # Buses
+    ("https://gtfs.ztp.krakow.pl/GTFS_KRK_M.zip", "GTFS_KRK_M"),  # Metro/Train
+    ("https://gtfs.ztp.krakow.pl/GTFS_KRK_T.zip", "GTFS_KRK_T"),  # Trams
+]
+
+
+def download_gtfs_data():
+    """
+    Download and extract GTFS data from Krakow transport authority.
+    
+    Downloads ZIP files and extracts them to local folders.
+    Skips download if folder already exists.
+    """
+    print("\n📥 Downloading GTFS data...")
+    
+    for url, folder_name in GTFS_URLS:
+        if os.path.exists(folder_name):
+            print(f"   • {folder_name} already exists, skipping download")
+            continue
+        
+        zip_filename = f"{folder_name}.zip"
+        
+        try:
+            print(f"   • Downloading {folder_name}...")
+            urlretrieve(url, zip_filename)
+            
+            print(f"   • Extracting {folder_name}...")
+            with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
+                zip_ref.extractall(folder_name)
+            
+            # Remove ZIP file after extraction
+            os.remove(zip_filename)
+            print(f"   ✓ {folder_name} ready")
+            
+        except Exception as e:
+            print(f"   ❌ Failed to download {folder_name}: {e}")
+            # Clean up partial downloads
+            if os.path.exists(zip_filename):
+                os.remove(zip_filename)
+            if os.path.exists(folder_name):
+                shutil.rmtree(folder_name)
+            raise
+    
+    print("   ✓ All GTFS data downloaded and extracted")
+
+
+def cleanup_gtfs_data():
+    """
+    Remove downloaded GTFS data folders.
+    
+    Called after database seeding is complete to clean up disk space.
+    """
+    print("\n🧹 Cleaning up GTFS data...")
+    
+    for _, folder_name in GTFS_URLS:
+        if os.path.exists(folder_name):
+            try:
+                shutil.rmtree(folder_name)
+                print(f"   • Removed {folder_name}")
+            except Exception as e:
+                print(f"   ⚠️  Failed to remove {folder_name}: {e}")
+    
+    print("   ✓ GTFS data cleanup complete")
+
+
+# ============================================================================
+# DATABASE SETUP
+# ============================================================================
 
 
 def remove_old_database():
@@ -54,86 +197,57 @@ def create_vehicle_types(db):
 
 
 def create_stops(db, vehicle_types):
-    """Create sample stops (bus/tram/train stations)."""
-    print("\n🚏 Creating stops...")
+    """Create stops (bus/tram/train) from GTFS stops.txt files."""
+    print("\n🚏 Creating stops from GTFS...")
 
     # Find vehicle types by code
     bus_type = next(vt for vt in vehicle_types if vt.code == "BUS")
     tram_type = next(vt for vt in vehicle_types if vt.code == "TRAM")
     train_type = next(vt for vt in vehicle_types if vt.code == "TRAIN")
 
-    stops_data = [
-        {
-            "name": "Central Station",
-            "vehicle_type_id": train_type.id,
-            "latitude": 52.2297,
-            "longitude": 21.0122,
-        },
-        {
-            "name": "Old Town Square",
-            "vehicle_type_id": tram_type.id,
-            "latitude": 52.2496,
-            "longitude": 21.0121,
-        },
-        {
-            "name": "University Campus",
-            "vehicle_type_id": bus_type.id,
-            "latitude": 52.2131,
-            "longitude": 21.0244,
-        },
-        {
-            "name": "Airport Terminal 1",
-            "vehicle_type_id": bus_type.id,
-            "latitude": 52.1672,
-            "longitude": 20.9679,
-            "external_id": "AIRPORT_T1",
-        },
-        {
-            "name": "Business District Center",
-            "vehicle_type_id": tram_type.id,
-            "latitude": 52.2319,
-            "longitude": 21.0067,
-        },
-        {
-            "name": "Shopping Mall Westfield",
-            "vehicle_type_id": bus_type.id,
-            "latitude": 52.1897,
-            "longitude": 20.9825,
-        },
-        {
-            "name": "Stadium North Gate",
-            "vehicle_type_id": tram_type.id,
-            "latitude": 52.2398,
-            "longitude": 20.9224,
-        },
-        {
-            "name": "Hospital Emergency",
-            "vehicle_type_id": bus_type.id,
-            "latitude": 52.2150,
-            "longitude": 21.0500,
-        },
-        {
-            "name": "Tech Park East",
-            "vehicle_type_id": bus_type.id,
-            "latitude": 52.2550,
-            "longitude": 21.0850,
-        },
-        {
-            "name": "Riverside Promenade",
-            "vehicle_type_id": tram_type.id,
-            "latitude": 52.2450,
-            "longitude": 21.0300,
-        },
+    # Map folder to vehicle type
+    feeds = [
+        ("GTFS_KRK_A", bus_type),
+        ("GTFS_KRK_T", tram_type),
+        ("GTFS_KRK_M", train_type),
     ]
 
     stops = []
-    for stop_data in stops_data:
-        stop = Stop(**stop_data)
-        db.add(stop)
-        stops.append(stop)
+    total = 0
+
+    for folder, vtype in feeds:
+        path = os.path.join(folder, "stops.txt")
+        if not os.path.isfile(path):
+            print(f"   • Skipping {folder}: no stops.txt found")
+            continue
+
+        print(f"   • Loading stops from {folder}...")
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                stop_id = row.get("stop_id")
+                stop_name = f"{row.get("stop_name")} {row.get("stop_desc", "")}".strip()
+                lat = row.get("stop_lat")
+                lon = row.get("stop_lon")
+
+                # Skip incomplete records
+                if not (stop_id and stop_name and lat and lon):
+                    continue
+
+                stop = Stop(
+                    id=stop_id,
+                    name=stop_name.strip(),
+                    vehicle_type_id=vtype.id,
+                    latitude=float(lat),
+                    longitude=float(lon),
+                    created_at=datetime.utcnow(),
+                )
+                db.add(stop)
+                stops.append(stop)
+                total += 1
 
     db.commit()
-    print(f"   ✓ Created {len(stops)} stops")
+    print(f"   ✓ Created {len(stops)} stops (from {total} total rows read)")
     return stops
 
 
@@ -299,149 +413,244 @@ def create_vehicles(db, vehicle_types, users):
     return vehicles
 
 
-def create_routes(db, stops, vehicles):
-    """Create sample routes."""
-    print("\n🚌 Creating routes...")
+def create_routes(db, stops, vehicle_types):
+    """
+    Create routes from GTFS trip data.
+    
+    A route represents a single trip with a start/end stop and scheduled times.
+    Extracts trip information from GTFS stop_times.txt files.
+    
+    Returns:
+        tuple: (routes list, route_trip_mapping dict)
+            - routes: List of created Route objects
+            - route_trip_mapping: Maps GTFS trip_id to Route object
+    """
+    print("\n🚌 Creating routes from GTFS data...")
 
-    now = datetime.now()
+    feeds = get_vehicle_type_mapping(vehicle_types)
     routes = []
+    route_trip_mapping = {}
+    total_created = 0
 
-    route_configs = [
-        {
-            "vehicle": vehicles[0],  # BUS-101
-            "starting_stop": stops[2],  # University Campus
-            "ending_stop": stops[8],  # Tech Park East
-            "hours_offset": 1,
-            "duration": 2,
-            "status": "ON_TIME",
-        },
-        {
-            "vehicle": vehicles[3],  # TRAM-205
-            "starting_stop": stops[1],  # Old Town Square
-            "ending_stop": stops[0],  # Central Station
-            "hours_offset": 2,
-            "duration": 1.5,
-            "status": "ON_TIME",
-        },
-        {
-            "vehicle": vehicles[1],  # BUS-102
-            "starting_stop": stops[0],  # Central Station
-            "ending_stop": stops[3],  # Airport Terminal 1
-            "hours_offset": 3,
-            "duration": 2.5,
-            "status": "ON_TIME",
-        },
-        {
-            "vehicle": vehicles[6],  # TRAIN-S1
-            "starting_stop": stops[0],  # Central Station
-            "ending_stop": stops[3],  # Airport Terminal 1
-            "hours_offset": 4,
-            "duration": 3,
-            "status": "ON_TIME",
-        },
-        {
-            "vehicle": vehicles[4],  # TRAM-206
-            "starting_stop": stops[4],  # Business District Center
-            "ending_stop": stops[3],  # Airport Terminal 1
-            "hours_offset": 0.5,
-            "duration": 1,
-            "status": "DELAYED",
-        },
-    ]
-
-    for config in route_configs:
-        route = Route(
-            vehicle_id=config["vehicle"].id,
-            starting_stop_id=config["starting_stop"].id,
-            ending_stop_id=config["ending_stop"].id,
-            scheduled_departure=now + timedelta(hours=config["hours_offset"]),
-            scheduled_arrival=(
-                now + timedelta(hours=config["hours_offset"] + config["duration"])
-            ),
-            current_status=config["status"],
+    for folder, vehicle_type in feeds:
+        total_created += _process_routes_for_feed(
+            db, folder, vehicle_type, routes, route_trip_mapping
         )
+
+    # Commit routes so they get database IDs assigned
+    db.commit()
+    
+    print(f"   ✓ Created {len(routes)} routes (from {total_created} GTFS trips)")
+    return routes, route_trip_mapping
+
+
+def _process_routes_for_feed(db, folder, vehicle_type, routes, route_trip_mapping):
+    """
+    Process routes from a single GTFS feed folder.
+    
+    Returns:
+        int: Number of routes created
+    """
+    stop_times_path = os.path.join(folder, "stop_times.txt")
+    
+    if not os.path.isfile(stop_times_path):
+        print(f"   • Skipping {folder}: stop_times.txt not found")
+        return 0
+
+    print(f"   • Processing routes from {folder}...")
+    
+    # Load and aggregate trip data
+    stop_times_df = pd.read_csv(stop_times_path)
+    trip_aggregates = stop_times_df.sort_values(['trip_id', 'stop_sequence']).groupby('trip_id').agg(
+        starting_stop=('stop_id', 'first'),
+        ending_stop=('stop_id', 'last'),
+        scheduled_arrival=('arrival_time', 'last'),
+        scheduled_departure=('departure_time', 'first'),
+    ).reset_index()
+    
+    # Filter for valid trips (both stops exist in our database for this vehicle type)
+    valid_trips = _get_valid_trips(trip_aggregates, vehicle_type.id)
+    
+    # Create Route objects
+    count = 0
+    for trip_data in tqdm(valid_trips):
+        trip_id, start_stop_id, end_stop_id, arrival_time, departure_time = trip_data
+        
+        route = Route(
+            vehicle_id=vehicle_type.id,
+            starting_stop_id=start_stop_id,
+            ending_stop_id=end_stop_id,
+            scheduled_arrival=parse_gtfs_time(arrival_time),
+            scheduled_departure=parse_gtfs_time(departure_time),
+            current_status="PLANNED",
+        )
+        
         db.add(route)
         routes.append(route)
+        route_trip_mapping[trip_id] = route
+        count += 1
+    
+    return count
 
-    db.commit()
-    print(f"   ✓ Created {len(routes)} routes")
-    return routes
+
+def _get_valid_trips(trip_aggregates, vehicle_type_id):
+    """
+    Filter trips to only include those with valid stops in the database.
+    
+    Uses SQLite to efficiently join trip data with existing stops.
+    
+    Returns:
+        list: List of tuples (trip_id, start_stop, end_stop, arrival, departure)
+    """
+    conn = sqlite3.connect('transportation.db')
+    
+    with conn:
+        # Create temporary table
+        trip_aggregates.to_sql('temp_trip_stops', conn, if_exists='replace', index=False)
+        
+        # Query for trips where both start and end stops exist
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                t.trip_id, 
+                t.starting_stop, 
+                t.ending_stop, 
+                t.scheduled_arrival, 
+                t.scheduled_departure
+            FROM temp_trip_stops t
+            INNER JOIN stops s1 ON t.starting_stop = s1.id
+            INNER JOIN stops s2 ON t.ending_stop = s2.id
+            WHERE s1.vehicle_type_id = ? 
+              AND s2.vehicle_type_id = ?
+        """, (vehicle_type_id, vehicle_type_id))
+        
+        return cursor.fetchall()
+    
+    conn.close()
 
 
-def create_route_stops(db, routes, stops):
-    """Create route-stop associations."""
-    print("\n📍 Creating route stops...")
+def create_route_stops(db, routes, stops, vehicle_types, route_trip_mapping):
+    """
+    Create route-stop associations from GTFS data.
+    
+    For each route, creates RouteStop entries representing each stop along the way
+    with scheduled arrival/departure times and sequence order.
+    
+    Args:
+        route_trip_mapping: Maps GTFS trip_id to Route objects (from create_routes)
+    
+    Returns:
+        list: Created RouteStop objects
+    """
+    print("\n📍 Creating route stops from GTFS data...")
 
+    feeds = get_vehicle_type_mapping(vehicle_types)
     route_stops = []
+    total_created = 0
 
-    # Route 1: BUS-101 (5 stops)
-    route1_stops = [stops[2], stops[4], stops[5], stops[7], stops[8]]
-    for i, stop in enumerate(route1_stops):
-        base_time = datetime.now() + timedelta(hours=1, minutes=i * 15)
-        rs = RouteStop(
-            route_id=routes[0].id,
-            stop_id=stop.id,
-            scheduled_arrival=base_time,
-            scheduled_departure=base_time + timedelta(minutes=2),
+    for folder, vehicle_type in feeds:
+        stops_created, trips_skipped = _process_route_stops_for_feed(
+            db, folder, vehicle_type, route_trip_mapping, route_stops
         )
-        db.add(rs)
-        route_stops.append(rs)
-
-    # Route 2: TRAM-205 (4 stops)
-    route2_stops = [stops[1], stops[6], stops[9], stops[0]]
-    for i, stop in enumerate(route2_stops):
-        base_time = datetime.now() + timedelta(hours=2, minutes=i * 10)
-        rs = RouteStop(
-            route_id=routes[1].id,
-            stop_id=stop.id,
-            scheduled_arrival=base_time,
-            scheduled_departure=base_time + timedelta(minutes=1),
-        )
-        db.add(rs)
-        route_stops.append(rs)
-
-    # Route 3: BUS-102 (6 stops)
-    route3_stops = [stops[0], stops[1], stops[2], stops[3], stops[7], stops[8]]
-    for i, stop in enumerate(route3_stops):
-        base_time = datetime.now() + timedelta(hours=3, minutes=i * 20)
-        rs = RouteStop(
-            route_id=routes[2].id,
-            stop_id=stop.id,
-            scheduled_arrival=base_time,
-            scheduled_departure=base_time + timedelta(minutes=3),
-        )
-        db.add(rs)
-        route_stops.append(rs)
-
-    # Route 4: TRAIN-S1 (4 stops)
-    route4_stops = [stops[0], stops[4], stops[5], stops[3]]
-    for i, stop in enumerate(route4_stops):
-        base_time = datetime.now() + timedelta(hours=4, minutes=i * 25)
-        rs = RouteStop(
-            route_id=routes[3].id,
-            stop_id=stop.id,
-            scheduled_arrival=base_time,
-            scheduled_departure=base_time + timedelta(minutes=2),
-        )
-        db.add(rs)
-        route_stops.append(rs)
-
-    # Route 5: TRAM-206 (3 stops)
-    route5_stops = [stops[4], stops[0], stops[3]]
-    for i, stop in enumerate(route5_stops):
-        base_time = datetime.now() + timedelta(hours=0.5, minutes=i * 8)
-        rs = RouteStop(
-            route_id=routes[4].id,
-            stop_id=stop.id,
-            scheduled_arrival=base_time,
-            scheduled_departure=base_time + timedelta(minutes=1),
-        )
-        db.add(rs)
-        route_stops.append(rs)
+        total_created += stops_created
+        
+        if trips_skipped > 0:
+            print(f"   ⚠️  Skipped {trips_skipped} trips with no matching route")
 
     db.commit()
-    print(f"   ✓ Created {len(route_stops)} route stops")
+    print(f"   ✓ Created {total_created} route stops")
     return route_stops
+
+
+def _process_route_stops_for_feed(db, folder, vehicle_type, route_trip_mapping, route_stops):
+    """
+    Process route stops from a single GTFS feed folder.
+    
+    Returns:
+        tuple: (stops_created, trips_skipped)
+    """
+    stop_times_path = os.path.join(folder, "stop_times.txt")
+    
+    if not os.path.isfile(stop_times_path):
+        print(f"   • Skipping {folder}: stop_times.txt not found")
+        return 0, 0
+
+    print(f"   • Processing route stops from {folder}...")
+    
+    # Load stop times data
+    stop_times_df = pd.read_csv(stop_times_path)
+    
+    # Get valid stop times (stops that exist in our database)
+    valid_stop_times = _get_valid_stop_times(stop_times_df, vehicle_type.id)
+    
+    # Create RouteStop objects
+    stops_created = 0
+    trips_skipped = set()
+    current_trip_id = None
+    current_route = None
+    
+    for stop_data in tqdm(valid_stop_times):
+        trip_id, stop_id, arrival_time, departure_time, stop_sequence = stop_data
+        
+        # Check if we've moved to a new trip
+        if trip_id != current_trip_id:
+            current_trip_id = trip_id
+            current_route = route_trip_mapping.get(trip_id)
+            
+            # Track trips that don't have a corresponding route
+            if not current_route:
+                trips_skipped.add(trip_id)
+        
+        # Only create route stop if we have a valid route
+        if current_route:
+            route_stop = RouteStop(
+                route_id=current_route.id,
+                stop_id=stop_id,
+                scheduled_arrival=parse_gtfs_time(arrival_time),
+                scheduled_departure=parse_gtfs_time(departure_time),
+                stop_sequence=stop_sequence,
+            )
+            
+            db.add(route_stop)
+            route_stops.append(route_stop)
+            stops_created += 1
+    
+    return stops_created, len(trips_skipped)
+
+
+def _get_valid_stop_times(stop_times_df, vehicle_type_id):
+    """
+    Filter stop times to only include stops that exist in the database.
+    
+    Uses SQLite to efficiently join stop_times with existing stops.
+    
+    Returns:
+        list: List of tuples (trip_id, stop_id, arrival_time, departure_time, stop_sequence)
+    """
+    conn = sqlite3.connect('transportation.db')
+    
+    with conn:
+        # Create temporary table
+        stop_times_df.to_sql('temp_stop_times', conn, if_exists='replace', index=False)
+        
+        # Query for stop times where the stop exists in our database
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                st.trip_id, 
+                st.stop_id, 
+                st.arrival_time, 
+                st.departure_time, 
+                st.stop_sequence
+            FROM temp_stop_times st
+            INNER JOIN stops s ON st.stop_id = s.id
+            WHERE s.vehicle_type_id = ?
+            ORDER BY st.trip_id, st.stop_sequence
+        """, (vehicle_type_id,))
+        
+        return cursor.fetchall()
+    
+    conn.close()
 
 
 def create_journeys(db, routes, users):
@@ -621,54 +830,72 @@ def print_summary(
     print("🌐 You can now explore the API at: http://localhost:8000/docs")
 
 
-def seed_database():
-    """Main seeding function."""
+def seed_database(keep_gtfs_data=False):
+    """
+    Main seeding function.
+    
+    Args:
+        keep_gtfs_data: If True, don't delete GTFS folders after seeding
+    """
     print("🌱 Starting database seeding...")
     print("=" * 50)
 
-    # Remove old database
-    remove_old_database()
-
-    print("\n📦 Creating new database...")
-    # Initialize database structure
-    init_db()
-    print("   ✓ Database structure created")
-
-    # Create session
-    db = SessionLocal()
-
     try:
-        # Create vehicle types
-        vehicle_types = create_vehicle_types(db)
+        # Download GTFS data
+        download_gtfs_data()
 
-        # Create data
-        stops = create_stops(db, vehicle_types)
-        users = create_users(db)
-        vehicles = create_vehicles(db, vehicle_types, users)
-        routes = create_routes(db, stops, vehicles)
-        route_stops = create_route_stops(db, routes, stops)
-        journeys = create_journeys(db, routes, users)
-        journey_data_list = create_journey_data(db, journeys, users)
+        # Remove old database
+        remove_old_database()
 
-        # Print summary
-        print_summary(
-            vehicle_types,
-            stops,
-            users,
-            vehicles,
-            routes,
-            route_stops,
-            journeys,
-            journey_data_list,
-        )
+        print("\n📦 Creating new database...")
+        # Initialize database structure
+        init_db()
+        print("   ✓ Database structure created")
 
-    except Exception as e:
-        print(f"\n❌ Error seeding database: {e}")
-        db.rollback()
-        raise
+        # Create session
+        db = SessionLocal()
+
+        try:
+            # Create vehicle types
+            vehicle_types = create_vehicle_types(db)
+
+            # Create data
+            stops = create_stops(db, vehicle_types)
+            users = create_users(db)
+            vehicles = create_vehicles(db, vehicle_types, users)
+            routes, route_trip_mapping = create_routes(db, stops, vehicle_types)
+            route_stops = create_route_stops(db, routes, stops, vehicle_types, route_trip_mapping)
+            journeys = create_journeys(db, routes, users)
+            journey_data_list = create_journey_data(db, journeys, users)
+
+            # Print summary
+            print_summary(
+                vehicle_types,
+                stops,
+                users,
+                vehicles,
+                routes,
+                route_stops,
+                journeys,
+                journey_data_list,
+            )
+
+        except Exception as e:
+            print(f"\n❌ Error seeding database: {e}")
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
     finally:
-        db.close()
+        # Clean up GTFS data unless user wants to keep it
+        if not keep_gtfs_data:
+            cleanup_gtfs_data()
+        else:
+            print("\n📂 GTFS data kept in local folders")
 
 
 if __name__ == "__main__":
-    seed_database()
+    # Check for command-line arguments
+    keep_gtfs = "--keep-gtfs" in sys.argv
+    seed_database(keep_gtfs_data=keep_gtfs)
