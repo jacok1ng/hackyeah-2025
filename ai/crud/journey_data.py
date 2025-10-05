@@ -45,12 +45,3 @@ def update_journey_data(
     db.commit()
     db.refresh(db_journey_data)
     return db_journey_data
-
-
-def delete_journey_data(db: Session, journey_data_id: str) -> bool:
-    db_journey_data = get_journey_data(db, journey_data_id)
-    if not db_journey_data:
-        return False
-    db.delete(db_journey_data)
-    db.commit()
-    return True

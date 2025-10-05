@@ -2,12 +2,18 @@ from database import init_db_with_data
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import (
+    auth,
     journey_data,
-    journeys,
+    reports,
+    route_segments,
     route_stops,
     routes,
+    shape_points,
     stops,
+    tickets,
+    user_journeys,
     users,
+    vehicle_trips,
     vehicle_types,
     vehicles,
 )
@@ -34,14 +40,20 @@ app.add_middleware(
 )
 
 modules = [
+    auth,
     vehicle_types,
     vehicles,
     stops,
     routes,
     route_stops,
-    journeys,
+    route_segments,
+    shape_points,
+    vehicle_trips,
     users,
     journey_data,
+    reports,
+    tickets,
+    user_journeys,
 ]
 for module in modules:
     app.include_router(module.router)

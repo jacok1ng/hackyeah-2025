@@ -38,6 +38,7 @@ class Vehicle(Base):
     vehicle_type = relationship("VehicleType", back_populates="vehicles")
     current_driver = relationship("User", back_populates="assigned_vehicles")
     routes = relationship("Route", back_populates="vehicle")
+    reports = relationship("Report", back_populates="vehicle")
 
 
 class Stop(Base):
@@ -79,7 +80,7 @@ class Route(Base):
         "Stop", foreign_keys=[ending_stop_id], back_populates="ending_routes"
     )
     route_stops = relationship("RouteStop", back_populates="route")
-    journeys = relationship("Journey", back_populates="route")
+    vehicle_trips = relationship("VehicleTrip", back_populates="route")
 
 
 class RouteStop(Base):
@@ -96,8 +97,8 @@ class RouteStop(Base):
     stop = relationship("Stop", back_populates="route_stops")
 
 
-class Journey(Base):
-    __tablename__ = "journeys"
+class VehicleTrip(Base):
+    __tablename__ = "vehicle_trips"
 
     id = Column(String, primary_key=True, default=generate_uuid)
     route_id = Column(String, ForeignKey("routes.id"), nullable=False)
@@ -108,9 +109,11 @@ class Journey(Base):
     current_status = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.now)
 
-    route = relationship("Route", back_populates="journeys")
-    driver = relationship("User", back_populates="journeys")
-    journey_data = relationship("JourneyData", back_populates="journey")
+    route = relationship("Route", back_populates="vehicle_trips")
+    driver = relationship("User", back_populates="vehicle_trips")
+    journey_data = relationship("JourneyData", back_populates="vehicle_trip")
+    reports = relationship("Report", back_populates="vehicle_trip")
+    tickets = relationship("Ticket", back_populates="vehicle_trip")
 
 
 class User(Base):
@@ -124,20 +127,24 @@ class User(Base):
     reputation_points = Column(Integer, default=0)
     verified = Column(Boolean, default=False)
     badge = Column(String, nullable=True)
+    verified_reports_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
 
-    journeys = relationship("Journey", back_populates="driver")
+    vehicle_trips = relationship("VehicleTrip", back_populates="driver")
     journey_data = relationship("JourneyData", back_populates="user")
     assigned_vehicles = relationship("Vehicle", back_populates="current_driver")
+    reports = relationship("Report", back_populates="user")
+    tickets = relationship("Ticket", back_populates="user")
+    user_journeys = relationship("UserJourney", back_populates="user")
 
 
 class JourneyData(Base):
     __tablename__ = "journey_data"
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    journey_id = Column(String, ForeignKey("journeys.id"), nullable=False)
+    vehicle_trip_id = Column(String, ForeignKey("vehicle_trips.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=True)
     timestamp = Column(DateTime, nullable=False)
 
@@ -180,5 +187,98 @@ class JourneyData(Base):
     battery_level = Column(Float, nullable=True)
     connectivity = Column(String, nullable=True)
 
-    journey = relationship("Journey", back_populates="journey_data")
+    vehicle_trip = relationship("VehicleTrip", back_populates="journey_data")
     user = relationship("User", back_populates="journey_data")
+
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    vehicle_trip_id = Column(String, ForeignKey("vehicle_trips.id"), nullable=False)
+    vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    category = Column(String, nullable=False)
+    confidence = Column(Integer, nullable=False)
+    description = Column(String, nullable=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+    resolved_at = Column(DateTime, nullable=True)
+
+    vehicle_trip = relationship("VehicleTrip", back_populates="reports")
+    vehicle = relationship("Vehicle", back_populates="reports")
+    user = relationship("User", back_populates="reports")
+
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    ticket_type = Column(String, nullable=False)
+    valid_from = Column(DateTime, nullable=False)
+    valid_to = Column(DateTime, nullable=False)
+    vehicle_trip_id = Column(String, ForeignKey("vehicle_trips.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    user = relationship("User", back_populates="tickets")
+    vehicle_trip = relationship("VehicleTrip", back_populates="tickets")
+
+
+class UserJourney(Base):
+    __tablename__ = "user_journeys"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    is_saved = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="user_journeys")
+    stops = relationship("UserJourneyStop", back_populates="user_journey")
+
+
+class UserJourneyStop(Base):
+    __tablename__ = "user_journey_stops"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    user_journey_id = Column(String, ForeignKey("user_journeys.id"), nullable=False)
+    stop_id = Column(String, ForeignKey("stops.id"), nullable=False)
+    stop_order = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+
+    user_journey = relationship("UserJourney", back_populates="stops")
+    stop = relationship("Stop")
+
+
+class RouteSegment(Base):
+    __tablename__ = "route_segments"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    from_stop_id = Column(String, ForeignKey("stops.id"), nullable=False)
+    to_stop_id = Column(String, ForeignKey("stops.id"), nullable=False)
+    shape_id = Column(String, nullable=False, unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    from_stop = relationship("Stop", foreign_keys=[from_stop_id])
+    to_stop = relationship("Stop", foreign_keys=[to_stop_id])
+    shape_points = relationship("ShapePoint", back_populates="route_segment")
+
+
+class ShapePoint(Base):
+    __tablename__ = "shape_points"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    shape_id = Column(
+        String, ForeignKey("route_segments.shape_id"), nullable=False, index=True
+    )
+    shape_pt_lat = Column(Float, nullable=False)
+    shape_pt_lon = Column(Float, nullable=False)
+    shape_pt_sequence = Column(Integer, nullable=False)
+    shape_dist_traveled = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.now)
+
+    route_segment = relationship("RouteSegment", back_populates="shape_points")
