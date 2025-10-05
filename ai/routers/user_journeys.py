@@ -59,11 +59,11 @@ def create_user_journey(
                 .first()
             )
             if db_journey_model:
-                db_journey_model.notification_time = reminder_time
+                db_journey_model.notification_time = reminder_time  # type: ignore
                 db.commit()
                 db.refresh(db_journey_model)
                 # Update returned model
-                db_journey.notification_time = reminder_time
+                db_journey.notification_time = reminder_time  # type: ignore
 
     # Trigger 1: Notify DISPATCHER if disabled person schedules journey for next day
     # This is returned as part of response, not stored in database

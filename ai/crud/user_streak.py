@@ -139,6 +139,58 @@ def verify_user_was_on_vehicle_trip(
     """
     Verify that user was physically present on the VehicleTrip by checking GPS data.
 
+    EXPERIMENTAL ML VALIDATION:
+    ===========================
+    Ta funkcja testuje również walidację ML (XGBoost/LightGBM) i loguje wyniki
+    do porównania. Model ML trenowany jest na danych sensorowych i może potencjalnie
+    zastąpić obecne podejście rule-based.
+
+    TODO: MODEL TRANSFORMER (WYSOKI PRIORYTET)
+    ===========================================
+    Przyszły kierunek to model Transformer z mechanizmem atencji:
+
+    DLACZEGO TRANSFORMER?
+    1. Lepsze rozumienie temporalne (attention na całej sekwencji podróży)
+    2. Brak manual feature engineering (uczy się optymalnych cech sam)
+    3. Naturalnie obsługuje podróże o zmiennej długości
+    4. Bardziej odporny na brakujące/zaszumione dane sensorowe
+
+    ROZSZERZALNOŚĆ DLA EKO-MOBILNOŚCI:
+    ==================================
+    Po stworzeniu robust Transformer, można go rozszerzyć o:
+
+    1. Klasyfikację multi-modal wszystkich środków transportu:
+       - Transport publiczny (autobus, tramwaj, pociąg, metro)
+       - Samochód prywatny
+       - Rower
+       - Pieszo
+       - Hulajnoga elektryczna
+       - Inne (motocykl, rolki, itp.)
+
+    2. System nagród za eko-mobilność:
+       - Punkty za używanie transportu publicznego
+       - Odznaki za konsekwentne eko-wybory
+       - Tracking śladu węglowego
+       - Rankingi i wyzwania
+
+    3. Spersonalizowane sugestie:
+       - Rekomendacje eko tras
+       - Optymalne kombinacje transportu
+       - Trade-offy czas/koszt/węgiel
+
+    4. Analityka miejska:
+       - Agregowane wzorce mobilności
+       - Identyfikacja potrzeb infrastruktury
+       - Optymalizacja tras transportu publicznego
+
+    ŚCIEŻKA IMPLEMENTACJI:
+    1. [OBECNIE] Zbieranie danych z rule-based + ML validation
+    2. [NASTĘPNIE] Implementacja architektury Transformer
+    3. [TESTY] A/B test Transformer vs XGBoost
+    4. [PRODUKCJA] Zastąpienie rule-based najlepszym modelem
+    5. [ROZSZERZENIE] Rozbudowa o klasyfikację multi-modal
+    6. [GAMIFIKACJA] Implementacja systemu nagród
+
     Returns dict with:
     - verified: bool
     - visited_stops: int
@@ -209,17 +261,74 @@ def verify_user_was_on_vehicle_trip(
     total_stops = len(user_journey_stops)
     percentage = visited_stops / total_stops if total_stops > 0 else 0.0
 
-    return {
+    result = {
         "verified": percentage >= required_percentage,
         "visited_stops": visited_stops,
         "total_stops": total_stops,
         "percentage": percentage,
+        "validation_method": "rule_based_gps_proximity",
         "reason": (
             "Verified"
             if percentage >= required_percentage
             else f"Only visited {visited_stops}/{total_stops} stops ({percentage:.1%})"
         ),
     }
+
+    # EXPERIMENTAL: Test ML-based validation
+    # Działa równolegle z rule-based i loguje wyniki do porównania
+    # NA RAZIE - TYLKO ZBIERANIE DANYCH (wynik ML nie wpływa na decyzję)
+    try:
+        # Konwertuj dane GPS do DataFrame dla modelu ML
+        import pandas as pd
+
+        gps_df_rows = []
+        for gps_point in gps_data:
+            gps_df_rows.append(
+                {
+                    "user_id": user_id,
+                    "vehicle_trip_id": vehicle_trip_id,
+                    "timestamp": gps_point.timestamp,
+                    "latitude": gps_point.latitude,
+                    "longitude": gps_point.longitude,
+                    "altitude": gps_point.altitude,
+                    "speed": gps_point.speed,
+                    "bearing": gps_point.bearing,
+                    "accuracy": gps_point.accuracy,
+                    "satellite_count": gps_point.satellite_count,
+                    "acceleration_x": gps_point.acceleration_x,
+                    "acceleration_y": gps_point.acceleration_y,
+                    "acceleration_z": gps_point.acceleration_z,
+                    "linear_acceleration_x": gps_point.linear_acceleration_x,
+                    "linear_acceleration_y": gps_point.linear_acceleration_y,
+                    "linear_acceleration_z": gps_point.linear_acceleration_z,
+                    "gyroscope_x": gps_point.gyroscope_x,
+                    "gyroscope_y": gps_point.gyroscope_y,
+                    "gyroscope_z": gps_point.gyroscope_z,
+                    "pressure": gps_point.pressure,
+                }
+            )
+
+        if len(gps_df_rows) > 0:
+            gps_df = pd.DataFrame(gps_df_rows)
+
+            # Test ML validation (EXPERIMENTAL - tylko logowanie)
+            from ml.transport_classifier_inference import validate_transport_ml
+
+            ml_verified, ml_confidence = validate_transport_ml(
+                gps_df, result["verified"]
+            )
+
+            result["ml_validation"] = {
+                "ml_verified": ml_verified,
+                "ml_confidence": ml_confidence,
+                "status": "experimental_logging_only",
+                "note": "Przewidywania ML są logowane ale NIE używane do ostatecznej decyzji",
+            }
+    except Exception as e:
+        # ML validation nie działa - kontynuuj z rule-based
+        result["ml_validation"] = {"error": str(e), "status": "failed"}
+
+    return result
 
 
 def check_user_visited_stops_on_journey(

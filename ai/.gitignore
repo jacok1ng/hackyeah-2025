@@ -37,6 +37,7 @@ ml/*.csv
 ml/*.png
 ml/*.json
 ml/*.txt
+ml/*.jsonl
 ml/__pycache__/
 
 # Environment variables
