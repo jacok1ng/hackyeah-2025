@@ -1,50 +1,198 @@
-# Welcome to your Expo app 👋
+# HackYeah 2025 - Mobile App �📱
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplikacja mobilna do zarządzania transportem publicznym z funkcjonalnostami zgłaszania zdarzeń, śledzenia podróży i zarządzania profilem użytkownika.
 
-## Get started
+## 🚀 Funkcjonalności
 
-1. Install dependencies
+### 🏠 **Strona główna**
+
+- Planowanie tras i połączeń
+- Wyszukiwanie przystanków i tras
+- Wyświetlanie aktualnych informacji o transporcie
+
+### 💖 **Ulubione**
+
+- Zapisywanie ulubionych tras
+- Szybki dostęp do często używanych połączeń
+
+### 🎫 **Bilety**
+
+- Zarządzanie biletami elektronicznymi
+- Historia zakupów
+
+### 📊 **Status**
+
+- Aktualny status podróży
+- Informacje o opóźnieniach i zakłóceniach
+
+### 👤 **Profil**
+
+- Zarządzanie kontem użytkownika
+- System rang i odznak
+- Streak podróży
+- **Ustawienia** z możliwością konfiguracji:
+  - Dane osobowe
+  - **Ustawienia powiadomień** (rozbudowane opcje)
+
+### 📝 **Zgłaszanie zdarzeń**
+
+- Zgłaszanie problemów w transporcie
+- System kategoryzacji zdarzeń
+- Potwierdzenia zgłoszeń
+
+## 🛠️ Stack technologiczny
+
+- **React Native** z **Expo** (~54.0.12)
+- **Expo Router** (v6) - file-based routing
+- **TypeScript** - type safety
+- **NativeWind** (v4) - Tailwind CSS dla React Native
+- **React Native SVG** - ikony i grafiki wektorowe
+- **React Navigation** - nawigacja
+
+## 📁 Struktura projektu
+
+```
+app/
+├── _layout.tsx                 # Główny layout aplikacji
+├── index.tsx                   # Strona startowa
+├── report.tsx                  # Strona zgłoszeń
+└── (tabs)/                     # Tab navigator
+    ├── _layout.tsx             # Layout dla tabów
+    ├── index.tsx               # Start (główna)
+    ├── favorites.tsx           # Ulubione
+    ├── tickets.tsx             # Bilety
+    ├── status.tsx              # Status
+    └── profile/                # Profil (zagnieżdżony navigator)
+        ├── _layout.tsx         # Layout profilu
+        ├── index.tsx           # Główny profil
+        ├── settings.tsx        # Ustawienia
+        └── notifications.tsx   # Ustawienia powiadomień
+
+assets/
+├── icons/                      # Ikony SVG
+└── images/                     # Obrazy
+
+components/
+├── Header.tsx                  # Komponent nagłówka
+├── ReportForm.tsx             # Formularz zgłoszeń
+├── ReportConfirmationModal.tsx # Modal potwierdzenia
+└── ...                        # Inne komponenty
+
+types/
+└── report.ts                  # Typy TypeScript
+```
+
+## 🚀 Uruchomienie projektu
+
+### Wymagania
+
+- Node.js (≥18)
+- pnpm lub npm
+- Expo CLI
+
+### Instalacja
+
+1. **Zainstaluj zależności**
 
    ```bash
+   pnpm install
+   # lub
    npm install
    ```
 
-2. Start the app
+2. **Uruchom aplikację**
 
    ```bash
-   npx expo start
+   pnpm start
+   # lub
+   npm start
    ```
 
-In the output, you'll find options to open the app in a
+3. **Opcje uruchomienia:**
+   - **Android**: `pnpm android` (wymaga Android Studio/emulatora)
+   - **iOS**: `pnpm ios` (wymaga Xcode/symulatora)
+   - **Web**: `pnpm web`
+   - **Expo Go**: Zeskanuj QR kod w aplikacji Expo Go
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### Dodatkowe komendy
 
 ```bash
-npm run reset-project
+# Linting
+pnpm lint
+
+# Reset projektu
+pnpm reset-project
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🎨 Stylowanie
 
-## Learn more
+Projekt używa **NativeWind** (Tailwind CSS dla React Native):
 
-To learn more about developing your project with Expo, look at the following resources:
+```tsx
+// Przykład użycia
+<View className="flex-1 bg-white p-4">
+  <Text className="text-lg font-semibold text-gray-800">Tytuł</Text>
+</View>
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 🧭 Nawigacja
 
-## Join the community
+### File-based routing
 
-Join our community of developers creating universal apps.
+- `app/(tabs)/index.tsx` → `/(tabs)/`
+- `app/(tabs)/profile/settings.tsx` → `/(tabs)/profile/settings`
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Komponenty nawigacji
+
+```tsx
+// Link component (preferowany)
+import { Link } from "expo-router";
+
+<Link href="./settings" asChild>
+  <Pressable>
+    <Text>Ustawienia</Text>
+  </Pressable>
+</Link>;
+
+// Programowa nawigacja
+import { useRouter } from "expo-router";
+
+const router = useRouter();
+router.push("./settings");
+```
+
+## 📱 Główne komponenty UI
+
+### Header
+
+```tsx
+import Header from "@/components/Header";
+
+<Header title="Tytuł strony" />;
+```
+
+### Ikony
+
+```tsx
+import { BackArrowIcon, BusIcon } from "@/assets/icons";
+
+<BackArrowIcon color="#FBC535" />;
+```
+
+## 🔧 Konfiguracja
+
+### TypeScript
+
+Projekt jest w pełni skonfigurowany z TypeScript z rygorystycznymi typami.
+
+### ESLint
+
+Konfiguracja ESLint z regułami Expo.
+
+### Tailwind CSS
+
+Konfiguracja NativeWind w `tailwind.config.js`.
+
+## 👥 Zespół
+
+Aplikacja mobilna stworzona na HackYeah 2025 przez zespół Skromni.
