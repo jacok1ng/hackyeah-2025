@@ -8,23 +8,22 @@ This script is fully self-contained:
 - Populates with sample data
 - Cleans up downloaded GTFS files
 
-Run this script: 
+Run this script:
     python seed_database.py              # Downloads and cleans up GTFS data
     python seed_database.py --keep-gtfs  # Keep GTFS data after seeding
 """
 
+import csv
 import os
-import sys
 import shutil
+import sqlite3
+import sys
 import zipfile
-from datetime import datetime, timedelta, time
+from datetime import datetime, time, timedelta
 from random import choice, randint, uniform
 from urllib.request import urlretrieve
-import csv
-import pandas as pd
-import sqlite3
-from tqdm import tqdm
 
+import pandas as pd
 from database import SessionLocal, init_db
 from db_models import (
     JourneyData,
@@ -43,60 +42,63 @@ from db_models import (
     VehicleType,
 )
 from init_data import VEHICLE_TYPES
-
+from tqdm import tqdm
 
 # ============================================================================
 # GTFS DATA HELPERS
 # ============================================================================
 
+
 def parse_gtfs_time(time_str):
     """
     Convert GTFS time string to datetime object.
-    
+
     GTFS times can exceed 24:00:00 for trips that continue after midnight.
     For example, '25:30:00' means 1:30 AM the next day.
-    
+
     Args:
         time_str: Time string in format 'HH:MM:SS'
-    
+
     Returns:
         datetime object or None if input is invalid
     """
     if not time_str or pd.isna(time_str):
         return None
-    
+
     # Parse time components
-    parts = time_str.strip().split(':')
+    parts = time_str.strip().split(":")
     hours = int(parts[0])
     minutes = int(parts[1])
     seconds = int(parts[2])
-    
+
     # Handle times that exceed 24 hours (next day service)
     days = hours // 24
     hours = hours % 24
-    
+
     # Create datetime using today as base reference
     base_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    result = base_date + timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
-    
+    result = base_date + timedelta(
+        days=days, hours=hours, minutes=minutes, seconds=seconds
+    )
+
     return result
 
 
 def get_vehicle_type_mapping(vehicle_types):
     """
     Create a mapping of vehicle type codes to vehicle type objects.
-    
+
     Returns:
         dict: Mapping of folder names to (folder_path, vehicle_type) tuples
     """
     bus_type = next(vt for vt in vehicle_types if vt.code == "BUS")
     tram_type = next(vt for vt in vehicle_types if vt.code == "TRAM")
     train_type = next(vt for vt in vehicle_types if vt.code == "TRAIN")
-    
+
     return [
-        ("GTFS_KRK_A", bus_type),   # Buses
+        ("GTFS_KRK_A", bus_type),  # Buses
         ("GTFS_KRK_T", tram_type),  # Trams
-        ("GTFS_KRK_M", train_type), # Metro/Train
+        ("GTFS_KRK_M", train_type),  # Metro/Train
     ]
 
 
@@ -115,31 +117,31 @@ GTFS_URLS = [
 def download_gtfs_data():
     """
     Download and extract GTFS data from Krakow transport authority.
-    
+
     Downloads ZIP files and extracts them to local folders.
     Skips download if folder already exists.
     """
     print("\n📥 Downloading GTFS data...")
-    
+
     for url, folder_name in GTFS_URLS:
         if os.path.exists(folder_name):
             print(f"   • {folder_name} already exists, skipping download")
             continue
-        
+
         zip_filename = f"{folder_name}.zip"
-        
+
         try:
             print(f"   • Downloading {folder_name}...")
             urlretrieve(url, zip_filename)
-            
+
             print(f"   • Extracting {folder_name}...")
-            with zipfile.ZipFile(zip_filename, 'r') as zip_ref:
+            with zipfile.ZipFile(zip_filename, "r") as zip_ref:
                 zip_ref.extractall(folder_name)
-            
+
             # Remove ZIP file after extraction
             os.remove(zip_filename)
             print(f"   ✓ {folder_name} ready")
-            
+
         except Exception as e:
             print(f"   ❌ Failed to download {folder_name}: {e}")
             # Clean up partial downloads
@@ -148,18 +150,18 @@ def download_gtfs_data():
             if os.path.exists(folder_name):
                 shutil.rmtree(folder_name)
             raise
-    
+
     print("   ✓ All GTFS data downloaded and extracted")
 
 
 def cleanup_gtfs_data():
     """
     Remove downloaded GTFS data folders.
-    
+
     Called after database seeding is complete to clean up disk space.
     """
     print("\n🧹 Cleaning up GTFS data...")
-    
+
     for _, folder_name in GTFS_URLS:
         if os.path.exists(folder_name):
             try:
@@ -167,7 +169,7 @@ def cleanup_gtfs_data():
                 print(f"   • Removed {folder_name}")
             except Exception as e:
                 print(f"   ⚠️  Failed to remove {folder_name}: {e}")
-    
+
     print("   ✓ GTFS data cleanup complete")
 
 
@@ -232,7 +234,7 @@ def create_stops(db, vehicle_types):
             reader = csv.DictReader(f)
             for row in reader:
                 stop_id = row.get("stop_id")
-                stop_name = f"{row.get("stop_name")} {row.get("stop_desc", "")}".strip()
+                stop_name = f"{row.get('stop_name')} {row.get('stop_desc', '')}".strip()
                 lat = row.get("stop_lat")
                 lon = row.get("stop_lon")
 
@@ -271,6 +273,8 @@ def create_users(db):
             "reputation_points": 0,
             "badge": None,
             "verified_reports_count": 0,
+            "is_disabled": False,
+            "is_super_sporty": False,
         },
         {
             "name": "user2",
@@ -281,6 +285,8 @@ def create_users(db):
             "reputation_points": 0,
             "badge": None,
             "verified_reports_count": 0,
+            "is_disabled": True,
+            "is_super_sporty": False,
         },
         {
             "name": "user3",
@@ -291,6 +297,8 @@ def create_users(db):
             "reputation_points": 0,
             "badge": None,
             "verified_reports_count": 0,
+            "is_disabled": False,
+            "is_super_sporty": True,
         },
         {
             "name": "driv",
@@ -301,6 +309,8 @@ def create_users(db):
             "reputation_points": 0,
             "badge": None,
             "verified_reports_count": 0,
+            "is_disabled": False,
+            "is_super_sporty": False,
         },
         {
             "name": "disp",
@@ -311,6 +321,8 @@ def create_users(db):
             "reputation_points": 0,
             "badge": None,
             "verified_reports_count": 0,
+            "is_disabled": False,
+            "is_super_sporty": False,
         },
         {
             "name": "admin",
@@ -321,6 +333,8 @@ def create_users(db):
             "reputation_points": 0,
             "badge": None,
             "verified_reports_count": 0,
+            "is_disabled": False,
+            "is_super_sporty": False,
         },
     ]
 
@@ -428,10 +442,10 @@ def create_vehicles(db, vehicle_types, users):
 def create_routes(db, stops, vehicle_types):
     """
     Create routes from GTFS trip data.
-    
+
     A route represents a single trip with a start/end stop and scheduled times.
     Extracts trip information from GTFS stop_times.txt files.
-    
+
     Returns:
         tuple: (routes list, route_trip_mapping dict)
             - routes: List of created Route objects
@@ -451,7 +465,7 @@ def create_routes(db, stops, vehicle_types):
 
     # Commit routes so they get database IDs assigned
     db.commit()
-    
+
     print(f"   ✓ Created {len(routes)} routes (from {total_created} GTFS trips)")
     return routes, route_trip_mapping
 
@@ -459,35 +473,40 @@ def create_routes(db, stops, vehicle_types):
 def _process_routes_for_feed(db, folder, vehicle_type, routes, route_trip_mapping):
     """
     Process routes from a single GTFS feed folder.
-    
+
     Returns:
         int: Number of routes created
     """
     stop_times_path = os.path.join(folder, "stop_times.txt")
-    
+
     if not os.path.isfile(stop_times_path):
         print(f"   • Skipping {folder}: stop_times.txt not found")
         return 0
 
     print(f"   • Processing routes from {folder}...")
-    
+
     # Load and aggregate trip data
     stop_times_df = pd.read_csv(stop_times_path)
-    trip_aggregates = stop_times_df.sort_values(['trip_id', 'stop_sequence']).groupby('trip_id').agg(
-        starting_stop=('stop_id', 'first'),
-        ending_stop=('stop_id', 'last'),
-        scheduled_arrival=('arrival_time', 'last'),
-        scheduled_departure=('departure_time', 'first'),
-    ).reset_index()
-    
+    trip_aggregates = (
+        stop_times_df.sort_values(["trip_id", "stop_sequence"])
+        .groupby("trip_id")
+        .agg(
+            starting_stop=("stop_id", "first"),
+            ending_stop=("stop_id", "last"),
+            scheduled_arrival=("arrival_time", "last"),
+            scheduled_departure=("departure_time", "first"),
+        )
+        .reset_index()
+    )
+
     # Filter for valid trips (both stops exist in our database for this vehicle type)
     valid_trips = _get_valid_trips(trip_aggregates, vehicle_type.id)
-    
+
     # Create Route objects
     count = 0
     for trip_data in tqdm(valid_trips):
         trip_id, start_stop_id, end_stop_id, arrival_time, departure_time = trip_data
-        
+
         route = Route(
             vehicle_id=vehicle_type.id,
             starting_stop_id=start_stop_id,
@@ -496,33 +515,36 @@ def _process_routes_for_feed(db, folder, vehicle_type, routes, route_trip_mappin
             scheduled_departure=parse_gtfs_time(departure_time),
             current_status="PLANNED",
         )
-        
+
         db.add(route)
         routes.append(route)
         route_trip_mapping[trip_id] = route
         count += 1
-    
+
     return count
 
 
 def _get_valid_trips(trip_aggregates, vehicle_type_id):
     """
     Filter trips to only include those with valid stops in the database.
-    
+
     Uses SQLite to efficiently join trip data with existing stops.
-    
+
     Returns:
         list: List of tuples (trip_id, start_stop, end_stop, arrival, departure)
     """
-    conn = sqlite3.connect('transportation.db')
-    
+    conn = sqlite3.connect("transportation.db")
+
     with conn:
         # Create temporary table
-        trip_aggregates.to_sql('temp_trip_stops', conn, if_exists='replace', index=False)
-        
+        trip_aggregates.to_sql(
+            "temp_trip_stops", conn, if_exists="replace", index=False
+        )
+
         # Query for trips where both start and end stops exist
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT 
                 t.trip_id, 
                 t.starting_stop, 
@@ -534,23 +556,25 @@ def _get_valid_trips(trip_aggregates, vehicle_type_id):
             INNER JOIN stops s2 ON t.ending_stop = s2.id
             WHERE s1.vehicle_type_id = ? 
               AND s2.vehicle_type_id = ?
-        """, (vehicle_type_id, vehicle_type_id))
-        
+        """,
+            (vehicle_type_id, vehicle_type_id),
+        )
+
         return cursor.fetchall()
-    
+
     conn.close()
 
 
 def create_route_stops(db, routes, stops, vehicle_types, route_trip_mapping):
     """
     Create route-stop associations from GTFS data.
-    
+
     For each route, creates RouteStop entries representing each stop along the way
     with scheduled arrival/departure times and sequence order.
-    
+
     Args:
         route_trip_mapping: Maps GTFS trip_id to Route objects (from create_routes)
-    
+
     Returns:
         list: Created RouteStop objects
     """
@@ -565,7 +589,7 @@ def create_route_stops(db, routes, stops, vehicle_types, route_trip_mapping):
             db, folder, vehicle_type, route_trip_mapping, route_stops
         )
         total_created += stops_created
-        
+
         if trips_skipped > 0:
             print(f"   ⚠️  Skipped {trips_skipped} trips with no matching route")
 
@@ -574,45 +598,47 @@ def create_route_stops(db, routes, stops, vehicle_types, route_trip_mapping):
     return route_stops
 
 
-def _process_route_stops_for_feed(db, folder, vehicle_type, route_trip_mapping, route_stops):
+def _process_route_stops_for_feed(
+    db, folder, vehicle_type, route_trip_mapping, route_stops
+):
     """
     Process route stops from a single GTFS feed folder.
-    
+
     Returns:
         tuple: (stops_created, trips_skipped)
     """
     stop_times_path = os.path.join(folder, "stop_times.txt")
-    
+
     if not os.path.isfile(stop_times_path):
         print(f"   • Skipping {folder}: stop_times.txt not found")
         return 0, 0
 
     print(f"   • Processing route stops from {folder}...")
-    
+
     # Load stop times data
     stop_times_df = pd.read_csv(stop_times_path)
-    
+
     # Get valid stop times (stops that exist in our database)
     valid_stop_times = _get_valid_stop_times(stop_times_df, vehicle_type.id)
-    
+
     # Create RouteStop objects
     stops_created = 0
     trips_skipped = set()
     current_trip_id = None
     current_route = None
-    
+
     for stop_data in tqdm(valid_stop_times):
         trip_id, stop_id, arrival_time, departure_time, stop_sequence = stop_data
-        
+
         # Check if we've moved to a new trip
         if trip_id != current_trip_id:
             current_trip_id = trip_id
             current_route = route_trip_mapping.get(trip_id)
-            
+
             # Track trips that don't have a corresponding route
             if not current_route:
                 trips_skipped.add(trip_id)
-        
+
         # Only create route stop if we have a valid route
         if current_route:
             route_stop = RouteStop(
@@ -622,32 +648,33 @@ def _process_route_stops_for_feed(db, folder, vehicle_type, route_trip_mapping, 
                 scheduled_departure=parse_gtfs_time(departure_time),
                 stop_sequence=stop_sequence,
             )
-            
+
             db.add(route_stop)
             route_stops.append(route_stop)
             stops_created += 1
-    
+
     return stops_created, len(trips_skipped)
 
 
 def _get_valid_stop_times(stop_times_df, vehicle_type_id):
     """
     Filter stop times to only include stops that exist in the database.
-    
+
     Uses SQLite to efficiently join stop_times with existing stops.
-    
+
     Returns:
         list: List of tuples (trip_id, stop_id, arrival_time, departure_time, stop_sequence)
     """
-    conn = sqlite3.connect('transportation.db')
-    
+    conn = sqlite3.connect("transportation.db")
+
     with conn:
         # Create temporary table
-        stop_times_df.to_sql('temp_stop_times', conn, if_exists='replace', index=False)
-        
+        stop_times_df.to_sql("temp_stop_times", conn, if_exists="replace", index=False)
+
         # Query for stop times where the stop exists in our database
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT 
                 st.trip_id, 
                 st.stop_id, 
@@ -658,10 +685,12 @@ def _get_valid_stop_times(stop_times_df, vehicle_type_id):
             INNER JOIN stops s ON st.stop_id = s.id
             WHERE s.vehicle_type_id = ?
             ORDER BY st.trip_id, st.stop_sequence
-        """, (vehicle_type_id,))
-        
+        """,
+            (vehicle_type_id,),
+        )
+
         return cursor.fetchall()
-    
+
     conn.close()
 
 
@@ -1174,7 +1203,7 @@ def print_summary(
 def seed_database(keep_gtfs_data=False):
     """
     Main seeding function.
-    
+
     Args:
         keep_gtfs_data: If True, don't delete GTFS folders after seeding
     """
@@ -1205,9 +1234,16 @@ def seed_database(keep_gtfs_data=False):
             users = create_users(db)
             vehicles = create_vehicles(db, vehicle_types, users)
             routes, route_trip_mapping = create_routes(db, stops, vehicle_types)
-            route_stops = create_route_stops(db, routes, stops, vehicle_types, route_trip_mapping)
+            route_stops = create_route_stops(
+                db, routes, stops, vehicle_types, route_trip_mapping
+            )
+            route_segments = []  # Not created in this seed script
+            shape_points = []  # Not created in this seed script
             journeys = create_journeys(db, routes, users)
             journey_data_list = create_journey_data(db, journeys, users)
+            user_journeys = []  # Not created in this seed script
+            tickets = []  # Not created in this seed script
+            reports = []  # Not created in this seed script
 
             # Print summary
             print_summary(
@@ -1217,8 +1253,13 @@ def seed_database(keep_gtfs_data=False):
                 vehicles,
                 routes,
                 route_stops,
+                route_segments,
+                shape_points,
                 journeys,
                 journey_data_list,
+                user_journeys,
+                tickets,
+                reports,
             )
 
         except Exception as e:

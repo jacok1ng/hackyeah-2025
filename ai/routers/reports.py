@@ -3,7 +3,7 @@ from typing import List
 import crud
 from database import get_db
 from dependencies import get_current_user, require_admin_or_dispatcher
-from enums import UserRole
+from enums import ReportCategory, UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import Report, ReportCreate, ReportUpdate, User
 from sqlalchemy.orm import Session
@@ -20,8 +20,29 @@ def create_report(
     """
     Create a new report/incident. Requires authentication.
     Confidence is automatically set to 100% for non-passengers and 50% for passengers.
+
+    Triggers:
+    - For VEHICLE_BREAKDOWN, TRAFFIC_JAM, or MEDICAL_HELP reports, finds alternative route
     """
-    return crud.create_report(db, report, str(current_user.id), current_user.role)
+    created_report = crud.create_report(
+        db, report, str(current_user.id), current_user.role
+    )
+
+    # Trigger 2: Find alternative route for critical reports
+    critical_categories = [
+        ReportCategory.VEHICLE_BREAKDOWN,
+        ReportCategory.TRAFFIC_JAM,
+        ReportCategory.MEDICAL_HELP,
+    ]
+
+    if report.category in critical_categories:
+        # TODO: Implement algorithm to find alternative faster route
+        # In production, this would trigger a notification service
+        print(
+            f"[NOTIFICATION] Finding alternative route for user {current_user.name} due to {report.category.value}"
+        )
+
+    return created_report
 
 
 @router.get("/", response_model=List[Report])

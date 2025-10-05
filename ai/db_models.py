@@ -128,6 +128,8 @@ class User(Base):
     verified = Column(Boolean, default=False)
     badge = Column(String, nullable=True)
     verified_reports_count = Column(Integer, default=0)
+    is_disabled = Column(Boolean, default=False)
+    is_super_sporty = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
@@ -234,6 +236,8 @@ class UserJourney(Base):
     name = Column(String, nullable=False)
     is_saved = Column(Boolean, default=False)
     is_active = Column(Boolean, default=False)
+    planned_date = Column(DateTime, nullable=True)
+    notification_time = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, nullable=True)
 

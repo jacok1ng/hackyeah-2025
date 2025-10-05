@@ -2,7 +2,7 @@ from typing import List
 
 import crud
 from database import get_db
-from dependencies import require_admin, require_admin_or_dispatcher
+from dependencies import require_admin_or_dispatcher
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import JourneyData, JourneyDataCreate
 from sqlalchemy.orm import Session

@@ -23,3 +23,7 @@ ENV/
 *~
 
 .env
+
+GTFS_KRK_A/
+GTFS_KRK_M/
+GTFS_KRK_T/

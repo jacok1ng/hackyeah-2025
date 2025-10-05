@@ -2,7 +2,14 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from enums import JourneyStatus, ReportCategory, RouteStatus, TicketType, UserRole
+from enums import (
+    JourneyStatus,
+    NotificationType,
+    ReportCategory,
+    RouteStatus,
+    TicketType,
+    UserRole,
+)
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -173,6 +180,8 @@ class UserBase(BaseModel):
     reputation_points: int = 0
     verified: bool = False
     badge: Optional[str] = None
+    is_disabled: bool = False
+    is_super_sporty: bool = False
 
 
 class UserCreate(UserBase):
@@ -187,6 +196,8 @@ class UserUpdate(BaseModel):
     verified: Optional[bool] = None
     badge: Optional[str] = None
     password: Optional[str] = None
+    is_disabled: Optional[bool] = None
+    is_super_sporty: Optional[bool] = None
 
 
 class User(UserBase):
@@ -375,6 +386,8 @@ class UserJourneyBase(BaseModel):
     name: str
     is_saved: bool = False
     is_active: bool = False
+    planned_date: Optional[datetime] = None
+    notification_time: Optional[datetime] = None
 
 
 class UserJourneyCreate(BaseModel):
@@ -383,12 +396,15 @@ class UserJourneyCreate(BaseModel):
     name: str
     is_saved: bool = False
     is_active: bool = False
+    planned_date: Optional[datetime] = None
 
 
 class UserJourneyUpdate(BaseModel):
     name: Optional[str] = None
     is_saved: Optional[bool] = None
     is_active: Optional[bool] = None
+    planned_date: Optional[datetime] = None
+    notification_time: Optional[datetime] = None
 
 
 class UserJourney(UserJourneyBase):
@@ -507,3 +523,13 @@ class LoginResponse(BaseModel):
     access_token: Optional[str] = None
     token_type: Optional[str] = "bearer"
     user: Optional[dict] = None
+
+
+class SystemNotification(BaseModel):
+    """System notification (not stored in database)."""
+
+    notification_type: NotificationType
+    message: str
+    related_journey_id: Optional[UUID] = None
+    related_report_id: Optional[UUID] = None
+    created_at: datetime = Field(default_factory=datetime.now)
