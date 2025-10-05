@@ -26,3 +26,5 @@ export { ExclamationMarkIcon } from "./ExclamationMarkIcon";
 export { AvatarIcon } from "./AvatarIcon";
 export { RankIcon } from "./RankIcon";
 export { FireIcon } from "./FireIcon";
+export { SettingsIcon } from "./SettingsIcon";
+export { NotificationsSettingsIcon } from "./NotificationsSettingsIcon";

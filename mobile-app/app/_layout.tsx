@@ -22,6 +22,7 @@ export default function RootLayout() {
           header: () => <Header title="Zgłoś zdarzenie" />,
         }}
       />
+
       <StatusBar />
     </Stack>
   );

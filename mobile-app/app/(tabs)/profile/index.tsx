@@ -1,5 +1,6 @@
 import { BackArrowIcon, FireIcon, RankIcon } from "@/assets/icons";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View, Pressable } from "react-native";
+import { Link } from "expo-router";
 
 export default function Tab() {
   return (
@@ -10,12 +11,8 @@ export default function Tab() {
       }}
     >
       <View className="flex flex-col items-center">
-        {/* <View className="self-start rounded-full bg-[#fdfdfd] p-[15px]"> */}
-        {/* <View className="self-start rounded-full bg-white p-[10px]"> */}
         <View className="flex aspect-square w-[120px] items-center justify-center rounded-full border-[3px] border-solid border-[#b0c6f9] bg-[#ebeef7]">
           <RankIcon color="#4A63AA" width={100} height={80} />
-          {/* </View> */}
-          {/* </View> */}
         </View>
         <Text className="mt-[32px] text-center text-[22px] font-semibold">
           Jan Kowalski
@@ -66,15 +63,17 @@ export default function Tab() {
         </Text>
 
         <View className="mt-[32px] flex gap-[14px] rounded-md">
-          <View className="w-full flex-row justify-between bg-white px-[18px] py-[14px]">
-            <View>
-              <Text className="text-[14px] font-semibold">Ustawienia</Text>
-            </View>
-            <BackArrowIcon
-              style={{ transform: [{ rotate: "180deg" }] }}
-              color="#FBC535"
-            />
-          </View>
+          <Link href="/(tabs)/profile/settings" asChild>
+            <Pressable className="w-full flex-row justify-between bg-white px-[18px] py-[14px]">
+              <View>
+                <Text className="text-[14px] font-semibold">Ustawienia</Text>
+              </View>
+              <BackArrowIcon
+                style={{ transform: [{ rotate: "180deg" }] }}
+                color="#FBC535"
+              />
+            </Pressable>
+          </Link>
 
           <View className="w-full flex-row justify-between bg-white px-[18px] py-[14px]">
             <View>

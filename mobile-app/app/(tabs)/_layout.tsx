@@ -51,7 +51,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          header: () => <Header title="Mój Profil" />,
+          headerShown: false,
           tabBarLabel: "Profil",
           tabBarIcon: ({ color }) => <AvatarIcon color={color} />,
         }}
