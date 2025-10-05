@@ -507,3 +507,40 @@ class LoginResponse(BaseModel):
     access_token: Optional[str] = None
     token_type: Optional[str] = "bearer"
     user: Optional[dict] = None
+
+
+class RouteProposalRequest(BaseModel):
+    """Request for route proposals from Google Maps."""
+
+    start_point: str
+    destination: str
+    api_key: str
+    departure_datetime: datetime
+
+
+class StepInfo(BaseModel):
+    """Information about a single step in a journey."""
+
+    start_lat: float
+    start_lng: float
+    end_lat: float
+    end_lng: float
+    gtfs_route_type: Optional[int] = None
+    gtfs_mode: str
+
+
+class RouteProposal(BaseModel):
+    """A single route proposal from Google Maps."""
+
+    summary: Optional[str] = None
+    departure_time: Optional[str] = None
+    arrival_time: Optional[str] = None
+    duration: str
+    steps_info: List[StepInfo]
+
+
+class RouteProposalsResponse(BaseModel):
+    """Response containing multiple route proposals."""
+
+    proposals: List[RouteProposal]
+    total_proposals: int

@@ -1,11 +1,18 @@
+from datetime import datetime, timedelta
+from hashlib import md5
 from typing import List
 
 import crud
+import googlemaps
 from database import get_db
 from dependencies import get_current_user
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import (
     FullRouteResponse,
+    RouteProposal,
+    RouteProposalRequest,
+    RouteProposalsResponse,
+    StepInfo,
     UserJourney,
     UserJourneyCreate,
     UserJourneyStop,
@@ -359,3 +366,120 @@ def get_user_journey_full_route(
         total_points=total_points,
         segments=segments,
     )
+
+
+@router.post("/proposals", response_model=RouteProposalsResponse)
+def get_route_proposals(
+    request: RouteProposalRequest,
+    current_user=Depends(get_current_user),
+):
+    """
+    Get route proposals from Google Maps API.
+    
+    This endpoint queries Google Maps Directions API with different parameters
+    to find the best public transit routes between two points.
+    
+    Args:
+        request: Contains start_point, destination, api_key, and departure_datetime
+    
+    Returns:
+        RouteProposalsResponse with list of route proposals
+    """
+    # Google Maps type mapping to GTFS
+    GOOGLE_TO_GTFS = {
+        "BUS": (3, "bus"),
+        "TRAM": (0, "tram"),
+        "LIGHT_RAIL": (0, "tram"),
+        "HEAVY_RAIL": (2, "train"),
+        "COMMUTER_TRAIN": (2, "train"),
+        "SUBWAY": (2, "train"),
+        "RAIL": (2, "train"),
+    }
+
+    try:
+        gmaps = googlemaps.Client(key=request.api_key)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid Google Maps API key: {str(e)}"
+        )
+
+    # Generate different query variants
+    variants = []
+    for mins in [0, 5, 10]:
+        for pref in [None, "less_walking", "fewer_transfers"]:
+            params = {
+                "origin": request.start_point,
+                "destination": request.destination,
+                "mode": "transit",
+                "transit_mode": ["bus"],
+                "departure_time": request.departure_datetime + timedelta(minutes=mins),
+            }
+            if pref:
+                params["transit_routing_preference"] = pref
+            variants.append(params)
+
+    proposals = []
+    seen = set()
+
+    for p in variants:
+        try:
+            routes = gmaps.directions(**p)
+        except Exception as e:
+            # Skip failed requests
+            continue
+        
+        if not routes:
+            continue
+
+        r = routes[0]  # Take the best route for this variant
+        leg = r['legs'][0]
+
+        # Create fingerprint for deduplication (line/headsign + first departure)
+        transit_fingerprint = []
+        for step in leg['steps']:
+            if step['travel_mode'] == "TRANSIT":
+                line = step['transit_details']['line'].get('short_name') or step['transit_details']['line'].get('name')
+                headsign = step['transit_details'].get('headsign')
+                depart = step['transit_details']['departure_time']['value']
+                transit_fingerprint.append(f"{line}|{headsign}|{depart}")
+        
+        key = md5("|".join(transit_fingerprint).encode()).hexdigest()
+        if key in seen:
+            continue
+        seen.add(key)
+
+        # Extract step information
+        steps_info = []
+        for step in leg['steps']:
+            gtfs_route_type, gtfs_mode = (None, "walk")
+            if step['travel_mode'] == "TRANSIT":
+                vehicle_type = step['transit_details']['line']['vehicle']['type']
+                gtfs_route_type, gtfs_mode = GOOGLE_TO_GTFS.get(vehicle_type, (None, "unknown"))
+            
+            steps_info.append(
+                StepInfo(
+                    start_lat=step['start_location']['lat'],
+                    start_lng=step['start_location']['lng'],
+                    end_lat=step['end_location']['lat'],
+                    end_lng=step['end_location']['lng'],
+                    gtfs_route_type=gtfs_route_type,
+                    gtfs_mode=gtfs_mode
+                )
+            )
+
+        proposals.append(
+            RouteProposal(
+                summary=r.get("summary"),
+                departure_time=leg['departure_time']['text'] if 'departure_time' in leg else None,
+                arrival_time=leg['arrival_time']['text'] if 'arrival_time' in leg else None,
+                duration=leg['duration']['text'],
+                steps_info=steps_info
+            )
+        )
+
+    return RouteProposalsResponse(
+        proposals=proposals,
+        total_proposals=len(proposals)
+    )
+
