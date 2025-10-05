@@ -543,6 +543,9 @@ class StepInfo(BaseModel):
     end_lng: float
     gtfs_route_type: Optional[int] = None
     gtfs_mode: str
+    departure_time: Optional[str] = None  # Czas odjazdu (dla transportu publicznego)
+    arrival_time: Optional[str] = None    # Czas przyjazdu (dla transportu publicznego)
+    duration: Optional[str] = None        # Czas trwania kroku
 
 
 class RouteProposal(BaseModel):
