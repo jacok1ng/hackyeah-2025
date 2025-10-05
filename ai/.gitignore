@@ -27,3 +27,7 @@ ENV/
 GTFS_KRK_A/
 GTFS_KRK_M/
 GTFS_KRK_T/
+
+# Route simulation generated files
+route_simulation/*.png
+route_simulation/*.csv
