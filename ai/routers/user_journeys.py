@@ -502,11 +502,20 @@ def get_route_proposals(
         steps_info = []
         for step in leg["steps"]:
             gtfs_route_type, gtfs_mode = (None, "walk")
+            departure_time = None
+            arrival_time = None
+
             if step["travel_mode"] == "TRANSIT":
                 vehicle_type = step["transit_details"]["line"]["vehicle"]["type"]
                 gtfs_route_type, gtfs_mode = GOOGLE_TO_GTFS.get(
                     vehicle_type, (None, "unknown")
                 )
+
+                # Pobierz czasy odjazdu i przyjazdu dla transportu publicznego
+                if "departure_time" in step["transit_details"]:
+                    departure_time = step["transit_details"]["departure_time"]["text"]
+                if "arrival_time" in step["transit_details"]:
+                    arrival_time = step["transit_details"]["arrival_time"]["text"]
 
             steps_info.append(
                 StepInfo(
@@ -516,6 +525,9 @@ def get_route_proposals(
                     end_lng=step["end_location"]["lng"],
                     gtfs_route_type=gtfs_route_type,
                     gtfs_mode=gtfs_mode,
+                    departure_time=departure_time,
+                    arrival_time=arrival_time,
+                    duration=step["duration"]["text"] if "duration" in step else None,
                 )
             )
 
