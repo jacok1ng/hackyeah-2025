@@ -156,6 +156,7 @@ def create_users(db):
             "verified": True,
             "reputation_points": 0,
             "badge": None,
+            "verified_reports_count": 0,
         },
         {
             "name": "user2",
@@ -165,6 +166,7 @@ def create_users(db):
             "verified": True,
             "reputation_points": 0,
             "badge": None,
+            "verified_reports_count": 0,
         },
         {
             "name": "user3",
@@ -174,6 +176,7 @@ def create_users(db):
             "verified": True,
             "reputation_points": 0,
             "badge": None,
+            "verified_reports_count": 0,
         },
         {
             "name": "driv",
@@ -183,6 +186,7 @@ def create_users(db):
             "verified": True,
             "reputation_points": 0,
             "badge": None,
+            "verified_reports_count": 0,
         },
         {
             "name": "disp",
@@ -192,6 +196,7 @@ def create_users(db):
             "verified": True,
             "reputation_points": 0,
             "badge": None,
+            "verified_reports_count": 0,
         },
         {
             "name": "admin",
@@ -201,6 +206,7 @@ def create_users(db):
             "verified": True,
             "reputation_points": 0,
             "badge": None,
+            "verified_reports_count": 0,
         },
     ]
 

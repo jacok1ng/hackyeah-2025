@@ -1,7 +1,6 @@
 # Import all CRUD functions to maintain backward compatibility
 from crud.journey_data import (
     create_journey_data,
-    delete_journey_data,
     get_journey_data,
     get_journey_data_list,
     update_journey_data,
@@ -11,6 +10,7 @@ from crud.report import (
     delete_report,
     get_report,
     get_reports,
+    get_reports_by_journey,
     get_reports_by_category,
     get_reports_by_vehicle,
     get_reports_by_vehicle_trip,
@@ -134,11 +134,11 @@ __all__ = [
     "get_journey_data",
     "get_journey_data_list",
     "update_journey_data",
-    "delete_journey_data",
     # Report
     "create_report",
     "get_report",
     "get_reports",
+    "get_reports_by_journey",
     "get_reports_by_vehicle_trip",
     "get_reports_by_vehicle",
     "get_reports_by_category",

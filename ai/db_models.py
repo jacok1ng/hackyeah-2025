@@ -127,6 +127,7 @@ class User(Base):
     reputation_points = Column(Integer, default=0)
     verified = Column(Boolean, default=False)
     badge = Column(String, nullable=True)
+    verified_reports_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)

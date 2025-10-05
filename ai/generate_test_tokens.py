@@ -4,64 +4,40 @@ Run this once to generate tokens for test_login.py
 """
 
 from auth import create_access_token
+from database import SessionLocal
+from db_models import User
 
-# Test users
-test_users = [
-    {
-        "username": "user",
-        "user_id": "user-1",
-        "email": "user@example.com",
-        "role": "PASSENGER",
-    },
-    {
-        "username": "user2",
-        "user_id": "user-2",
-        "email": "user2@example.com",
-        "role": "PASSENGER",
-    },
-    {
-        "username": "user3",
-        "user_id": "user-3",
-        "email": "user3@example.com",
-        "role": "PASSENGER",
-    },
-    {
-        "username": "driv",
-        "user_id": "driv",
-        "email": "driv@example.com",
-        "role": "DRIVER",
-    },
-    {
-        "username": "disp",
-        "user_id": "disp",
-        "email": "disp@example.com",
-        "role": "DISPATCHER",
-    },
-    {
-        "username": "admin",
-        "user_id": "admin",
-        "email": "admin@example.com",
-        "role": "ADMIN",
-    },
-]
+# Get real users from database
+db = SessionLocal()
 
-print("=" * 80)
-print("GENERATED TEST TOKENS (Never expire)")
-print("=" * 80)
-print("\nCopy these to test_login.py:\n")
-print("TEST_TOKENS = {")
+try:
+    # Get all users
+    users = db.query(User).all()
 
-for user in test_users:
-    token = create_access_token(
-        data={
-            "sub": user["user_id"],
-            "user_id": user["user_id"],
-            "username": user["username"],
-            "email": user["email"],
-            "role": user["role"],
-        }
-    )
-    print(f'    "{user["username"]}": "{token}",')
+    print("=" * 80)
+    print("GENERATED TEST TOKENS (Never expire)")
+    print("=" * 80)
+    print("\nCopy these to test_login.py or use directly:\n")
+    print("TEST_TOKENS = {")
 
-print("}\n")
-print("=" * 80)
+    for user in users:
+        token = create_access_token(
+            data={
+                "sub": str(user.id),
+                "user_id": str(user.id),
+                "username": user.name,
+                "email": user.email,
+                "role": user.role,
+            }
+        )
+        print(f'    "{user.name}": "{token}",')
+
+    print("}\n")
+    print("=" * 80)
+    print("\n📝 Quick reference:")
+    for user in users:
+        print(f"   {user.name:10} - {user.role:12} - {user.email}")
+    print("=" * 80)
+
+finally:
+    db.close()

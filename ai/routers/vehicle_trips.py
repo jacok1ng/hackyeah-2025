@@ -2,6 +2,7 @@ from typing import List
 
 import crud
 from database import get_db
+from dependencies import require_admin, require_driver_or_dispatcher
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import FullRouteResponse, VehicleTrip, VehicleTripCreate, VehicleTripUpdate
 from sqlalchemy.orm import Session
@@ -10,8 +11,12 @@ router = APIRouter(prefix="/vehicle-trips", tags=["vehicle-trips"])
 
 
 @router.post("/", response_model=VehicleTrip, status_code=status.HTTP_201_CREATED)
-def create_vehicle_trip(vehicle_trip: VehicleTripCreate, db: Session = Depends(get_db)):
-    """Create a new vehicle trip (execution of a route by a specific vehicle)."""
+def create_vehicle_trip(
+    vehicle_trip: VehicleTripCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_driver_or_dispatcher),
+):
+    """Create a new vehicle trip (execution of a route by a specific vehicle). Requires DRIVER or DISPATCHER role."""
     return crud.create_vehicle_trip(db, vehicle_trip)
 
 
@@ -37,7 +42,12 @@ def update_vehicle_trip(
     vehicle_trip_id: str,
     vehicle_trip_update: VehicleTripUpdate,
     db: Session = Depends(get_db),
+    _=Depends(require_driver_or_dispatcher),
 ):
+    """
+    Update a vehicle trip. Requires DRIVER or DISPATCHER role.
+    Note: In production, DRIVER should only update their assigned trips.
+    """
     db_vehicle_trip = crud.update_vehicle_trip(db, vehicle_trip_id, vehicle_trip_update)
     if not db_vehicle_trip:
         raise HTTPException(
@@ -47,7 +57,10 @@ def update_vehicle_trip(
 
 
 @router.delete("/{vehicle_trip_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_vehicle_trip(vehicle_trip_id: str, db: Session = Depends(get_db)):
+def delete_vehicle_trip(
+    vehicle_trip_id: str, db: Session = Depends(get_db), _=Depends(require_admin)
+):
+    """Delete a vehicle trip. Requires ADMIN role."""
     success = crud.delete_vehicle_trip(db, vehicle_trip_id)
     if not success:
         raise HTTPException(

@@ -195,6 +195,19 @@ class User(UserBase):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
+    verified_reports_count: int = 0
+
+    class Config:
+        from_attributes = True
+
+
+class UserPublic(BaseModel):
+    """Public user profile with limited information."""
+
+    id: UUID
+    name: str
+    badge: Optional[str] = None
+    verified_reports_count: int = 0
 
     class Config:
         from_attributes = True

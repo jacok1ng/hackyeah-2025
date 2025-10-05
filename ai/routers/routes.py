@@ -2,6 +2,7 @@ from typing import List
 
 import crud
 from database import get_db
+from dependencies import require_admin, require_admin_or_dispatcher
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import Route, RouteCreate, RouteUpdate
 from sqlalchemy.orm import Session
@@ -10,7 +11,12 @@ router = APIRouter(prefix="/routes", tags=["routes"])
 
 
 @router.post("/", response_model=Route, status_code=status.HTTP_201_CREATED)
-def create_route(route: RouteCreate, db: Session = Depends(get_db)):
+def create_route(
+    route: RouteCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin_or_dispatcher),
+):
+    """Create a new route. Requires ADMIN or DISPATCHER role."""
     return crud.create_route(db, route)
 
 
@@ -31,8 +37,12 @@ def get_route(route_id: str, db: Session = Depends(get_db)):
 
 @router.put("/{route_id}", response_model=Route)
 def update_route(
-    route_id: str, route_update: RouteUpdate, db: Session = Depends(get_db)
+    route_id: str,
+    route_update: RouteUpdate,
+    db: Session = Depends(get_db),
+    _=Depends(require_admin_or_dispatcher),
 ):
+    """Update a route. Requires ADMIN or DISPATCHER role."""
     db_route = crud.update_route(db, route_id, route_update)
     if not db_route:
         raise HTTPException(
@@ -42,7 +52,10 @@ def update_route(
 
 
 @router.delete("/{route_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_route(route_id: str, db: Session = Depends(get_db)):
+def delete_route(
+    route_id: str, db: Session = Depends(get_db), _=Depends(require_admin)
+):
+    """Delete a route. Requires ADMIN role."""
     success = crud.delete_route(db, route_id)
     if not success:
         raise HTTPException(

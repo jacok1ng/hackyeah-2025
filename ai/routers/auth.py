@@ -1,7 +1,7 @@
 import crud
 from auth import create_access_token, verify_password
 from database import get_db
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from models import LoginRequest, LoginResponse
 from sqlalchemy.orm import Session
 
@@ -70,6 +70,6 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
             "email": user.email,
             "role": user.role,
             "badge": user.badge,
-            "verified_reports_count": user.reputation_points,
+            "verified_reports_count": user.verified_reports_count,
         },
     )

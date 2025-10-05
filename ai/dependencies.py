@@ -7,6 +7,7 @@ from typing import Optional
 import crud
 from auth import decode_access_token
 from database import get_db
+from enums import UserRole
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -92,3 +93,34 @@ def require_role(allowed_roles: list[str]):
         return current_user
 
     return role_checker
+
+
+# Predefined role dependencies for common cases
+def require_admin(current_user=Depends(get_current_user)):
+    """Require ADMIN role."""
+    if current_user.role != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Admin role required.",
+        )
+    return current_user
+
+
+def require_admin_or_dispatcher(current_user=Depends(get_current_user)):
+    """Require ADMIN or DISPATCHER role."""
+    if current_user.role not in [UserRole.ADMIN.value, UserRole.DISPATCHER.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Admin or Dispatcher role required.",
+        )
+    return current_user
+
+
+def require_driver_or_dispatcher(current_user=Depends(get_current_user)):
+    """Require DRIVER or DISPATCHER role."""
+    if current_user.role not in [UserRole.DRIVER.value, UserRole.DISPATCHER.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Driver or Dispatcher role required.",
+        )
+    return current_user
