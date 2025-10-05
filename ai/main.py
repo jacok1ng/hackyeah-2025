@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import (
     auth,
+    delay_prediction,
     feedbacks,
     journey_data,
     reports,
@@ -56,6 +57,7 @@ modules = [
     tickets,
     user_journeys,
     feedbacks,
+    delay_prediction,
 ]
 for module in modules:
     app.include_router(module.router)

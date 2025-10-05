@@ -6,6 +6,14 @@ from crud.delay_detection import (
     send_alternative_route_to_users,
     send_delay_notification_to_families,
 )
+from crud.delay_prediction import (
+    calculate_current_delay,
+    get_delay_statistics,
+    get_historical_delays,
+    get_incident_impact,
+    predict_delay,
+    predict_delays_for_route,
+)
 from crud.feedback import create_feedback, get_all_feedbacks
 from crud.journey_data import (
     create_journey_data,
@@ -159,6 +167,13 @@ __all__ = [
     "send_alternative_route_to_users",
     "send_delay_notification_to_families",
     "handle_delay_detection",
+    # Delay Prediction
+    "predict_delay",
+    "predict_delays_for_route",
+    "calculate_current_delay",
+    "get_historical_delays",
+    "get_incident_impact",
+    "get_delay_statistics",
     # Report
     "create_report",
     "get_report",
