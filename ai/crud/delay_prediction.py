@@ -72,7 +72,7 @@ from typing import Dict, List, Optional
 
 from db_models import JourneyData, Report, RouteStop, VehicleTrip
 from enums import ReportCategory
-from sqlalchemy import and_, func
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 
@@ -113,9 +113,8 @@ def calculate_current_delay(
     # Find nearest stop
     min_distance = float("inf")
     nearest_stop = None
-    nearest_index = 0
 
-    for idx, route_stop in enumerate(route_stops):
+    for route_stop in route_stops:
         stop = route_stop.stop
         if not stop:
             continue
@@ -130,9 +129,8 @@ def calculate_current_delay(
         if distance < min_distance:
             min_distance = distance
             nearest_stop = route_stop
-            nearest_index = idx
 
-    if not nearest_stop or not nearest_stop.scheduled_arrival:
+    if not nearest_stop or not nearest_stop.scheduled_arrival:  # type: ignore
         return None
 
     # Calculate delay
@@ -140,8 +138,8 @@ def calculate_current_delay(
     current_time = datetime.now()
 
     # If we're past this stop, check if we're actually late
-    if current_time > scheduled_time:
-        delay_minutes = (current_time - scheduled_time).total_seconds() / 60
+    if current_time > scheduled_time:  # type: ignore
+        delay_minutes = (current_time - scheduled_time).total_seconds() / 60  # type: ignore
         return delay_minutes
     else:
         # We're early or on time
@@ -188,9 +186,9 @@ def get_historical_delays(
 
     for trip in historical_trips:
         # Check if trip matches time pattern
-        if trip.scheduled_departure:
-            trip_hour = trip.scheduled_departure.hour
-            trip_day = trip.scheduled_departure.weekday()
+        if trip.scheduled_departure:  # type: ignore
+            trip_hour = trip.scheduled_departure.hour  # type: ignore
+            trip_day = trip.scheduled_departure.weekday()  # type: ignore
 
             # Match time of day
             if not (time_start <= trip_hour <= time_end):
@@ -229,11 +227,11 @@ def _calculate_trip_delay(db: Session, vehicle_trip_id: str) -> Optional[float]:
         return None
 
     trip = db.query(VehicleTrip).filter(VehicleTrip.id == vehicle_trip_id).first()
-    if not trip or not trip.scheduled_departure or not trip.scheduled_arrival:
+    if not trip or not trip.scheduled_departure or not trip.scheduled_arrival:  # type: ignore
         return None
 
     # Get actual arrival time (last GPS point)
-    if not journey_data[-1].timestamp:
+    if not journey_data[-1].timestamp:  # type: ignore
         return None
 
     actual_arrival = journey_data[-1].timestamp
@@ -351,9 +349,9 @@ def predict_delay(
         )
 
     # Component 2: Historical patterns
-    if trip.scheduled_departure:
-        time_of_day = trip.scheduled_departure.hour
-        day_of_week = trip.scheduled_departure.weekday()
+    if trip.scheduled_departure:  # type: ignore
+        time_of_day = trip.scheduled_departure.hour  # type: ignore
+        day_of_week = trip.scheduled_departure.weekday()  # type: ignore
     else:
         time_of_day = datetime.now().hour
         day_of_week = datetime.now().weekday()

@@ -16,6 +16,10 @@ class Settings:
     # Google Maps API
     GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
+    # AI Services
+    # Note: Whisper runs locally - no API key needed!
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
     # JWT Configuration
     JWT_SECRET_KEY: str = os.getenv(
         "JWT_SECRET_KEY", "your-secret-key-change-in-production"
@@ -33,6 +37,14 @@ class Settings:
                 "⚠️  WARNING: GOOGLE_MAPS_API_KEY not set. "
                 "Google Maps API will not work."
             )
+        if not cls.GEMINI_API_KEY:
+            print(
+                "⚠️  WARNING: GEMINI_API_KEY not set. "
+                "Voice assistant (Gemini) will not work."
+            )
+
+        # Whisper info (no warning - it's local!)
+        print("✓ Whisper will run locally (no API key needed)")
 
 
 # Create singleton instance

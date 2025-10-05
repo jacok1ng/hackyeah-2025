@@ -9,7 +9,6 @@ from datetime import datetime
 
 from database import Base
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
-from sqlalchemy.orm import relationship
 
 
 def generate_uuid():
@@ -88,9 +87,9 @@ CREATE TABLE IF NOT EXISTS delay_predictions (
     created_at TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_delay_predictions_vehicle_trip 
+CREATE INDEX IF NOT EXISTS idx_delay_predictions_vehicle_trip
 ON delay_predictions(vehicle_trip_id);
 
-CREATE INDEX IF NOT EXISTS idx_delay_predictions_predicted_at 
+CREATE INDEX IF NOT EXISTS idx_delay_predictions_predicted_at
 ON delay_predictions(predicted_at);
 """

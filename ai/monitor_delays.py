@@ -26,15 +26,18 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from sqlalchemy import and_
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from crud import delay_prediction
-from database import SessionLocal
-from db_models import User, UserJourney, VehicleTrip
-from enums import NotificationType
-from models import SystemNotification
-from sqlalchemy import and_
+# These imports need to be after sys.path modification
+if True:  # noqa: SIM102
+    from crud import delay_prediction
+    from database import SessionLocal
+    from db_models import User, UserJourney, VehicleTrip
+    from enums import NotificationType
+    from models import SystemNotification
 
 
 def get_active_vehicle_trips(db):
@@ -188,6 +191,7 @@ def process_vehicle_trip(db, trip: VehicleTrip):
     # TODO: Create DelayPrediction table to store these
 
     # Check if notification needed (delay > 5 minutes and confidence > 0.6)
+    users = []
     if predicted_delay > 5.0 and confidence > 0.6:
         # Get users on this trip
         users = get_users_on_trip(db, trip_id)
@@ -200,9 +204,7 @@ def process_vehicle_trip(db, trip: VehicleTrip):
         "vehicle_trip_id": trip_id,
         "predicted_delay": predicted_delay,
         "confidence": confidence,
-        "notified_users": (
-            len(users) if predicted_delay > 5.0 and confidence > 0.6 else 0
-        ),
+        "notified_users": len(users),
     }
 
 

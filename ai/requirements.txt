@@ -20,3 +20,10 @@ python-jose[cryptography]==3.3.0
 googlemaps>=4.10.0
 python-dotenv>=1.0.0
 
+# AI Services
+openai-whisper>=20231117  # Local Whisper speech-to-text (NO API KEY NEEDED!)
+# faster-whisper>=0.10.0  # Optional: 4x faster Whisper (uncomment if needed)
+google-generativeai>=0.3.0  # Gemini natural language processing
+torch>=2.0.0  # Required by Whisper
+torchaudio>=2.0.0  # Required by Whisper
+

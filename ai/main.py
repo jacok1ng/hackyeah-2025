@@ -18,6 +18,7 @@ from routers import (
     vehicle_trips,
     vehicle_types,
     vehicles,
+    voice_assistant,
 )
 
 app = FastAPI(
@@ -58,6 +59,7 @@ modules = [
     user_journeys,
     feedbacks,
     delay_prediction,
+    voice_assistant,
 ]
 for module in modules:
     app.include_router(module.router)
