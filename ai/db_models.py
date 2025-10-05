@@ -44,8 +44,7 @@ class Vehicle(Base):
 class Stop(Base):
     __tablename__ = "stops"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
-    external_id = Column(String, nullable=True)
+    id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     vehicle_type_id = Column(String, ForeignKey("vehicle_types.id"), nullable=False)
     latitude = Column(Float, nullable=False)
@@ -92,6 +91,7 @@ class RouteStop(Base):
     stop_id = Column(String, ForeignKey("stops.id"), nullable=False)
     scheduled_departure = Column(DateTime, nullable=True)
     scheduled_arrival = Column(DateTime, nullable=True)
+    stop_sequence = Column(Integer, nullable=False)
 
     route = relationship("Route", back_populates="route_stops")
     stop = relationship("Stop", back_populates="route_stops")
