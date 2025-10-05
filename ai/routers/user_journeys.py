@@ -1,20 +1,23 @@
 from datetime import date, datetime, timedelta
 from hashlib import md5
 from typing import List
+from uuid import UUID
 
 import crud
 import googlemaps
 from config import settings
+from crud import journey_tracking
 from database import get_db
 from db_models import UserJourney as UserJourneyDB
+from db_models import UserJourneyStop as UserJourneyStopDB
 from dependencies import get_current_user
-from enums import UserRole
 from fastapi import APIRouter, Depends, HTTPException, status
 from models import (
     FullRouteResponse,
     RouteProposal,
     RouteProposalRequest,
     RouteProposalsResponse,
+    StartJourneyResponse,
     StepInfo,
     UserJourney,
     UserJourneyCreate,
@@ -440,7 +443,10 @@ def get_route_proposals(
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Google Maps API key not provided. Set GOOGLE_MAPS_API_KEY environment variable or pass api_key in request.",
+            detail=(
+                "Google Maps API key not provided. Set GOOGLE_MAPS_API_KEY "
+                "environment variable or pass api_key in request."
+            ),
         )
 
     try:
@@ -471,8 +477,8 @@ def get_route_proposals(
 
     for p in variants:
         try:
-            routes = gmaps.directions(**p)
-        except Exception as e:
+            routes = gmaps.directions(**p)  # type: ignore
+        except Exception:
             # Skip failed requests
             continue
 
@@ -546,3 +552,144 @@ def get_route_proposals(
         )
 
     return RouteProposalsResponse(proposals=proposals, total_proposals=len(proposals))
+
+
+@router.post("/{journey_id}/start", response_model=StartJourneyResponse)
+def start_journey(
+    journey_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Start a user journey - begins real-time tracking.
+
+    This endpoint:
+    - Marks journey as in_progress
+    - Records start time
+    - Calculates total distance and estimated arrival time
+    - Resets progress tracking
+
+    Mobile app should call this when user begins their journey.
+    """
+    # Get journey and verify ownership
+    db_journey = crud.get_user_journey(db, journey_id)
+    if not db_journey:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
+        )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only start your own journeys",
+        )
+
+    # Check if already in progress
+    if bool(db_journey.is_in_progress):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Journey is already in progress",
+        )
+
+    # Get journey stops
+    journey_stops = (
+        db.query(UserJourneyStopDB)
+        .filter(UserJourneyStopDB.user_journey_id == journey_id)
+        .order_by(UserJourneyStopDB.stop_order)
+        .all()
+    )
+
+    if len(journey_stops) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Journey must have at least 2 stops to start",
+        )
+
+    # Calculate total distance
+    total_distance = journey_tracking.calculate_total_route_distance(db, journey_id)
+
+    # Estimate arrival time (assuming 30 km/h average speed)
+    estimated_duration_minutes = None
+    estimated_arrival = None
+    if total_distance:
+        estimated_duration_minutes = journey_tracking.estimate_time_to_arrival(
+            total_distance, average_speed_kmh=30.0
+        )
+        estimated_arrival = datetime.now() + timedelta(
+            minutes=estimated_duration_minutes
+        )
+
+    # Update journey status
+    now = datetime.now()
+    db_journey_model = (
+        db.query(UserJourneyDB).filter(UserJourneyDB.id == journey_id).first()
+    )
+
+    if db_journey_model:
+        db_journey_model.is_in_progress = True  # type: ignore
+        db_journey_model.started_at = now  # type: ignore
+        db_journey_model.current_stop_index = 0  # type: ignore
+        db_journey_model.ended_at = None  # type: ignore
+        db.commit()
+        db.refresh(db_journey_model)
+
+    return StartJourneyResponse(
+        success=True,
+        message="Journey started successfully",
+        journey_id=UUID(str(db_journey.id)),
+        started_at=now,
+        estimated_arrival=estimated_arrival,
+        total_stops=len(journey_stops),
+        total_distance_meters=total_distance,
+    )
+
+
+@router.post("/{journey_id}/end", response_model=UserJourney)
+def end_journey(
+    journey_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    End a user journey - stops real-time tracking.
+
+    This endpoint:
+    - Marks journey as completed (not in_progress)
+    - Records end time
+    - Can be used for journey verification later
+
+    Mobile app should call this when user completes their journey.
+    """
+    # Get journey and verify ownership
+    db_journey = crud.get_user_journey(db, journey_id)
+    if not db_journey:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User journey not found"
+        )
+
+    if str(db_journey.user_id) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only end your own journeys",
+        )
+
+    # Check if in progress
+    if not bool(db_journey.is_in_progress):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Journey is not in progress",
+        )
+
+    # Update journey status
+    now = datetime.now()
+    db_journey_model = (
+        db.query(UserJourneyDB).filter(UserJourneyDB.id == journey_id).first()
+    )
+
+    if db_journey_model:
+        db_journey_model.is_in_progress = False  # type: ignore
+        db_journey_model.ended_at = now  # type: ignore
+        db.commit()
+        db.refresh(db_journey_model)
+
+    return crud.get_user_journey(db, journey_id)

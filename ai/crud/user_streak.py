@@ -3,14 +3,223 @@ CRUD operations for user streak (days in a row) system.
 """
 
 from datetime import date, datetime
+from math import asin, cos, radians, sin, sqrt
 
-from db_models import Ticket, User
+from db_models import (
+    JourneyData,
+    Route,
+    RouteStop,
+    Stop,
+    Ticket,
+    User,
+    UserJourney,
+    UserJourneyStop,
+    VehicleTrip,
+)
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 import crud
 
 MAX_FREEZE_DAYS = 5
+GPS_PROXIMITY_METERS = 100  # Distance threshold for "being at a stop"
+
+
+def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate the great circle distance between two points on earth (in meters).
+    Uses Haversine formula.
+    """
+    # Convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    # Haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+
+    # Radius of earth in meters
+    r = 6371000
+
+    return c * r
+
+
+def match_vehicle_trips_to_user_journey(
+    db: Session,
+    user_journey_id: str,
+    journey_date: date,
+    time_tolerance_minutes: int = 60,
+) -> list[VehicleTrip]:
+    """
+    Find VehicleTrips that match the UserJourney based on:
+    - Stop overlap (VehicleTrip route contains stops from UserJourney)
+    - Time proximity (scheduled time close to journey planned_date)
+
+    Returns list of matching VehicleTrips ordered by best match.
+    """
+    # Get UserJourney and its stops
+    user_journey = (
+        db.query(UserJourney).filter(UserJourney.id == user_journey_id).first()
+    )
+    if not user_journey:
+        return []
+
+    user_stops = (
+        db.query(UserJourneyStop)
+        .filter(UserJourneyStop.user_journey_id == user_journey_id)
+        .order_by(UserJourneyStop.stop_order)
+        .all()
+    )
+
+    if not user_stops:
+        return []
+
+    user_stop_ids = {str(stop.stop_id) for stop in user_stops}
+
+    # Time range for matching
+    date_start = datetime.combine(journey_date, datetime.min.time())
+    date_end = datetime.combine(journey_date, datetime.max.time())
+
+    # Find VehicleTrips scheduled on this date
+    vehicle_trips = (
+        db.query(VehicleTrip)
+        .join(Route)
+        .filter(
+            and_(
+                Route.scheduled_departure >= date_start,
+                Route.scheduled_departure <= date_end,
+            )
+        )
+        .all()
+    )
+
+    # Score each VehicleTrip by stop overlap
+    matching_trips = []
+
+    for trip in vehicle_trips:
+        route = trip.route
+        if not route:
+            continue
+
+        # Get stops on this route
+        route_stops = (
+            db.query(RouteStop).filter(RouteStop.route_id == str(route.id)).all()
+        )
+
+        route_stop_ids = {str(rs.stop_id) for rs in route_stops}
+
+        # Calculate overlap percentage
+        overlap = user_stop_ids.intersection(route_stop_ids)
+        overlap_percentage = len(overlap) / len(user_stop_ids) if user_stop_ids else 0
+
+        # Require at least 80% overlap to consider this a match
+        if overlap_percentage >= 0.8:
+            matching_trips.append(
+                {
+                    "trip": trip,
+                    "overlap_percentage": overlap_percentage,
+                    "overlap_count": len(overlap),
+                }
+            )
+
+    # Sort by overlap percentage (best matches first)
+    matching_trips.sort(key=lambda x: x["overlap_percentage"], reverse=True)
+
+    return [item["trip"] for item in matching_trips]
+
+
+def verify_user_was_on_vehicle_trip(
+    db: Session,
+    user_id: str,
+    vehicle_trip_id: str,
+    user_journey_stops: list[UserJourneyStop],
+    required_percentage: float = 0.8,
+) -> dict:
+    """
+    Verify that user was physically present on the VehicleTrip by checking GPS data.
+
+    Returns dict with:
+    - verified: bool
+    - visited_stops: int
+    - total_stops: int
+    - percentage: float
+    """
+    if not user_journey_stops:
+        return {
+            "verified": False,
+            "visited_stops": 0,
+            "total_stops": 0,
+            "percentage": 0.0,
+            "reason": "No stops in journey",
+        }
+
+    # Get user's GPS data for this VehicleTrip
+    gps_data = (
+        db.query(JourneyData)
+        .filter(
+            and_(
+                JourneyData.user_id == user_id,
+                JourneyData.vehicle_trip_id == vehicle_trip_id,
+            )
+        )
+        .all()
+    )
+
+    if not gps_data:
+        return {
+            "verified": False,
+            "visited_stops": 0,
+            "total_stops": len(user_journey_stops),
+            "percentage": 0.0,
+            "reason": "No GPS data found for this trip",
+        }
+
+    # For each stop, check if user's GPS was within proximity
+    visited_stops = 0
+
+    for journey_stop in user_journey_stops:
+        stop = db.query(Stop).filter(Stop.id == str(journey_stop.stop_id)).first()
+        if not stop:
+            continue
+
+        stop_lat = float(stop.latitude)  # type: ignore
+        stop_lon = float(stop.longitude)  # type: ignore
+
+        # Check if any GPS point was close to this stop
+        was_at_stop = False
+        for gps_point in gps_data:
+            if gps_point.latitude is None or gps_point.longitude is None:
+                continue
+
+            distance = calculate_distance(
+                float(gps_point.latitude),  # type: ignore
+                float(gps_point.longitude),  # type: ignore
+                stop_lat,
+                stop_lon,
+            )
+
+            if distance <= GPS_PROXIMITY_METERS:
+                was_at_stop = True
+                break
+
+        if was_at_stop:
+            visited_stops += 1
+
+    total_stops = len(user_journey_stops)
+    percentage = visited_stops / total_stops if total_stops > 0 else 0.0
+
+    return {
+        "verified": percentage >= required_percentage,
+        "visited_stops": visited_stops,
+        "total_stops": total_stops,
+        "percentage": percentage,
+        "reason": (
+            "Verified"
+            if percentage >= required_percentage
+            else f"Only visited {visited_stops}/{total_stops} stops ({percentage:.1%})"
+        ),
+    }
 
 
 def check_user_visited_stops_on_journey(
@@ -23,36 +232,66 @@ def check_user_visited_stops_on_journey(
     """
     Check if user visited at least required_percentage of stops on their UserJourney.
     Returns True if user's location appeared at required_percentage of the journey stops.
-    """
-    # TODO: Implement algorithm to check if user was at 80% of journey stops
-    # - Get UserJourney and its stops
-    # - Get user's GPS data (JourneyData) for this date
-    # - Check proximity to each stop (e.g., within 100 meters)
-    # - Return True if visited >= 80% of stops
 
-    # For now, return True for testing
-    return True
+    This function:
+    1. Finds matching VehicleTrips for the UserJourney
+    2. Checks if user's GPS data shows they were on one of those trips
+    3. Verifies they visited 80% of planned stops
+    """
+    # Get UserJourney stops
+    user_stops = (
+        db.query(UserJourneyStop)
+        .filter(UserJourneyStop.user_journey_id == user_journey_id)
+        .order_by(UserJourneyStop.stop_order)
+        .all()
+    )
+
+    if not user_stops:
+        return False
+
+    # Find matching VehicleTrips
+    matching_trips = match_vehicle_trips_to_user_journey(
+        db, user_journey_id, journey_date, time_tolerance_minutes=60
+    )
+
+    if not matching_trips:
+        # No matching public transport found
+        return False
+
+    # Try to verify with each matching trip
+    for vehicle_trip in matching_trips:
+        verification = verify_user_was_on_vehicle_trip(
+            db,
+            user_id,
+            str(vehicle_trip.id),
+            user_stops,
+            required_percentage,
+        )
+
+        if verification["verified"]:
+            # User was verified on this trip
+            return True
+
+    # User wasn't verified on any matching trip
+    return False
 
 
 def check_public_transport_availability(
     db: Session,
     user_journey_id: str,
     journey_date: date,
-    time_tolerance_minutes: int = 30,
+    time_tolerance_minutes: int = 60,
 ) -> bool:
     """
     Verify that public transport (VehicleTrip) was available for the UserJourney.
     Checks if VehicleTrip existed at the right time covering the journey stops.
     """
-    # TODO: Implement algorithm to verify public transport availability
-    # - Get UserJourney stops
-    # - Find VehicleTrips scheduled on this date
-    # - Check if any VehicleTrip covers >= 80% of journey stops
-    # - Optionally: check timing (was trip at the right time when user traveled?)
-    # - Return True if appropriate public transport was available
+    matching_trips = match_vehicle_trips_to_user_journey(
+        db, user_journey_id, journey_date, time_tolerance_minutes
+    )
 
-    # For now, return True for testing
-    return True
+    # Return True if at least one matching trip was found
+    return len(matching_trips) > 0
 
 
 def check_user_has_valid_ticket(db: Session, user_id: str, check_date: date) -> bool:

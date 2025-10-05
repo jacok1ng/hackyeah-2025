@@ -148,6 +148,9 @@ class JourneyData(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     vehicle_trip_id = Column(String, ForeignKey("vehicle_trips.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    user_journey_id = Column(
+        String, ForeignKey("user_journeys.id"), nullable=True
+    )  # Link to user's planned journey
     timestamp = Column(DateTime, nullable=False)
 
     latitude = Column(Float, nullable=True)
@@ -191,6 +194,7 @@ class JourneyData(Base):
 
     vehicle_trip = relationship("VehicleTrip", back_populates="journey_data")
     user = relationship("User", back_populates="journey_data")
+    user_journey = relationship("UserJourney", back_populates="journey_data")
 
 
 class Report(Base):
@@ -238,11 +242,16 @@ class UserJourney(Base):
     is_active = Column(Boolean, default=False)
     planned_date = Column(DateTime, nullable=True)
     notification_time = Column(DateTime, nullable=True)
+    is_in_progress = Column(Boolean, default=False)
+    started_at = Column(DateTime, nullable=True)
+    ended_at = Column(DateTime, nullable=True)
+    current_stop_index = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="user_journeys")
     stops = relationship("UserJourneyStop", back_populates="user_journey")
+    journey_data = relationship("JourneyData", back_populates="user_journey")
 
 
 class UserJourneyStop(Base):

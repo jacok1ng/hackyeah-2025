@@ -227,6 +227,7 @@ class UserPublic(BaseModel):
 class JourneyDataBase(BaseModel):
     vehicle_trip_id: UUID
     user_id: Optional[UUID] = None
+    user_journey_id: Optional[UUID] = None
     timestamp: datetime
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -270,6 +271,7 @@ class JourneyDataCreate(JourneyDataBase):
 class JourneyDataUpdate(BaseModel):
     vehicle_trip_id: Optional[UUID] = None
     user_id: Optional[UUID] = None
+    user_journey_id: Optional[UUID] = None
     timestamp: Optional[datetime] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -388,6 +390,10 @@ class UserJourneyBase(BaseModel):
     is_active: bool = False
     planned_date: Optional[datetime] = None
     notification_time: Optional[datetime] = None
+    is_in_progress: bool = False
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    current_stop_index: int = 0
 
 
 class UserJourneyCreate(BaseModel):
@@ -405,6 +411,10 @@ class UserJourneyUpdate(BaseModel):
     is_active: Optional[bool] = None
     planned_date: Optional[datetime] = None
     notification_time: Optional[datetime] = None
+    is_in_progress: Optional[bool] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    current_stop_index: Optional[int] = None
 
 
 class UserJourney(UserJourneyBase):
@@ -544,8 +554,8 @@ class StepInfo(BaseModel):
     gtfs_route_type: Optional[int] = None
     gtfs_mode: str
     departure_time: Optional[str] = None  # Czas odjazdu (dla transportu publicznego)
-    arrival_time: Optional[str] = None    # Czas przyjazdu (dla transportu publicznego)
-    duration: Optional[str] = None        # Czas trwania kroku
+    arrival_time: Optional[str] = None  # Czas przyjazdu (dla transportu publicznego)
+    duration: Optional[str] = None  # Czas trwania kroku
 
 
 class RouteProposal(BaseModel):
@@ -573,3 +583,32 @@ class SystemNotification(BaseModel):
     related_journey_id: Optional[UUID] = None
     related_report_id: Optional[UUID] = None
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+class JourneyProgressResponse(BaseModel):
+    """Real-time journey progress information."""
+
+    on_time: bool
+    delay_minutes: Optional[float] = None
+    distance_to_next_stop_meters: Optional[float] = None
+    time_to_next_stop_minutes: Optional[float] = None
+    next_stop_name: Optional[str] = None
+    distance_to_end_meters: Optional[float] = None
+    time_to_end_minutes: Optional[float] = None
+    remaining_stops: int
+    remaining_stop_names: List[str]
+    current_stop_index: int
+    total_stops: int
+    progress_percentage: float
+
+
+class StartJourneyResponse(BaseModel):
+    """Response when starting a journey."""
+
+    success: bool
+    message: str
+    journey_id: UUID
+    started_at: datetime
+    estimated_arrival: Optional[datetime] = None
+    total_stops: int
+    total_distance_meters: Optional[float] = None

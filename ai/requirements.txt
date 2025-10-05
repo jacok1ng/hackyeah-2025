@@ -17,5 +17,6 @@ matplotlib>=3.7.0
 requests==2.32.3
 tqdm==4.67.1
 python-jose[cryptography]==3.3.0
-googlemaps==4.10.0
+googlemaps>=4.10.0
+python-dotenv>=1.0.0
 
